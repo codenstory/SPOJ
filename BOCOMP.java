@@ -1,0 +1,327 @@
+/*
+ * BOCOMP
+ * TOPIC: parsing, recursion
+ * status: Accepted
+ */
+import java.util.*;
+import java.io.*;
+import java.util.concurrent.ThreadLocalRandom;
+
+class Main {
+    private final static int D = 21;
+    private static byte []which = new byte[1<<D], dp = new byte[1<<D];
+    private static int who( int k ) {
+        if ( k >= (1<<D) )
+            return 21+which[k>>21];
+        return which[k];
+    }
+    static {
+        for ( byte k = 0; k < (byte)D; which[1<<k] = k, ++k ) ;
+        dp[1] = 0;
+        for ( int k = 2; k < (1<<D); ++k ) {
+            if ( 0==(k&(k-1)) )
+                dp[k] = (byte)(dp[k-1]+1);
+            else dp[k] = dp[k-1];
+        }
+    }
+    BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+    BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(System.out));
+    public static void main( String [] args ) throws Exception {
+        System.setIn(new FileInputStream(new File("/home/sj/IdeaProjects/BOCOMP/src/in.txt")));
+        System.setOut(new PrintStream(new File("/home/sj/IdeaProjects/BOCOMP/src/out.txt")));
+        new Main().go();
+    }
+    private static int L( int k ) { return k&((~(k))+1); }
+    private static int H( int k ) {
+        assert( k > 0 );
+        if ( k == 1 ) return 0;
+        //int t = (int)(Math.log(k)/Math.log(2));
+        int t = dp[k];
+        //int t = who(1+((~k)|k))-1;
+        assert k >= (1<<t);
+        assert 0 != ((1<<t)&(k));
+        assert k < (1<<(t+1));
+        return t;
+    }
+    private static int BIT( int k ) { return 1<<k; }
+    private static class Poly implements Comparable<Poly> {
+        private char var;
+        private int value,u;
+        private Map<Integer,Poly> c = new HashMap<>();
+        Poly( int value ) {
+            this.var = 'A';
+            this.value = value;
+            this.u = 1;
+        }
+        @Override
+        public int compareTo( Poly other ) {
+            if ( var < other.var )
+                return -1;
+            if ( var > other.var )
+                return 1;
+            if ( var == 'A' )
+                return value-other.value;
+            assert var == other.var;
+            assert( 'a' <= var && var <= 'z' ) ;
+            if ( u > other.u )
+                return 1;
+            if ( u < other.u )
+                return -1;
+            for ( int v = u, i = 0, t; v > 0 && (i = H(v)) >= 0; v &= ~BIT(i) ) {
+                if ( 0 == (t = c.get(i).compareTo(other.c.get(i))) ) continue ;
+                return t;
+            }
+            return 0;
+        }
+        Poly( char ch ) {
+            assert ch != 'A';
+            var = ch;
+            u = BIT(0)|BIT(1);
+            c.put(1,new Poly(1));
+            c.put(0,new Poly(0));
+        }
+        Poly( Poly x ) {
+            value = x.value;
+            var = x.var;
+            u = x.u;
+            if ( var == 'A' ) return ;
+            for ( Map.Entry<Integer,Poly> entry: x.c.entrySet() )
+                this.c.put(entry.getKey(),entry.getValue());
+        }
+        Poly add( Poly other ) {
+            Poly res = null;
+            if ( this.var == other.var ) {
+                if ( this.var == 'A' )
+                    return new Poly(this.value+other.value);
+                res = new Poly(this);
+                for ( Map.Entry<Integer,Poly> entry: other.c.entrySet() )
+                    if ( res.c.containsKey(entry.getKey()) )
+                        res.c.put(entry.getKey(),res.c.get(entry.getKey()).add(entry.getValue()));
+                    else res.c.put(entry.getKey(),entry.getValue());
+                res.u |= other.u;
+                return res;
+            }
+            else if ( this.var < other.var ) {
+                res = new Poly(other);
+                res.c.put(0,res.c.get(0).add(this));
+                return res;
+                /*
+                other.c.put(0,other.c.get(0).multiply(this));
+                return other;*/
+            }
+            else {
+                res = new Poly(this);
+                assert this.var > other.var;
+                res.c.put(0,res.c.get(0).add(other));
+                return res;
+                //this.c.put(0,this.c.get(0).multiply(other));
+                //return this;
+            }
+        }
+        Poly multiply( Poly other ) {
+            Poly res = null;
+            if ( this.var == other.var ) {
+                if ( this.var == 'A' )
+                    return new Poly(this.value*other.value);
+                int i,j,k,v = 0;
+                Map<Integer,Poly> m = new HashMap<>();
+                for ( Map.Entry<Integer,Poly> it: this.c.entrySet() )
+                    for ( Map.Entry<Integer,Poly> jt: other.c.entrySet() ) {
+                        k = (i=it.getKey())+(j=jt.getKey());
+                        if ( m.containsKey(k) )
+                            m.put(k,m.get(k).add(it.getValue().multiply(jt.getValue())));
+                        else m.put(k,it.getValue().multiply(jt.getValue()));
+                    }
+                for ( Map.Entry<Integer,Poly> entry: m.entrySet() )
+                    v |= BIT(entry.getKey());
+                assert 1==(v&1);
+                res = new Poly(0);
+                res.var = this.var;
+                res.u = v;
+                res.c = m;
+                return res;
+            }
+            else if ( this.var < other.var ) {
+                res = new Poly(other);
+                for ( Map.Entry<Integer,Poly> entry: other.c.entrySet() )
+                    res.c.put(entry.getKey(),res.c.get(entry.getKey()).multiply(this));
+                return res;
+                //other.c.put(0,other.c.get(0).multiply(this));
+                //return other;
+            }
+            else {
+                assert this.var > other.var;
+                return other.multiply(this);
+            }
+        }
+        @Override
+        public String toString() {
+            if ( var == 'A' )
+                return Integer.toString(value);
+            StringBuilder sb = new StringBuilder();
+            for ( int v = u,i; v > 0 && (i = H(v)) >= 0; v &= ~BIT(i) )
+                sb.append("("+var+"^"+i+")*"+c.get(i).toString()+"+");
+            return "("+sb.toString()+")";
+        }
+    }
+    private static class Tokenizer {
+        private char []c;
+        private int cur,n;
+        char peekNext() { return c[cur]; }
+        void advance() { ++cur; }
+        char nextChar() {
+            assert hasNext();
+            return c[cur++];
+        }
+        boolean hasNext() {
+            return cur < n;
+        }
+        Tokenizer( String s ) {
+            c = s.toCharArray();
+            n = c.length;
+            cur = 0;
+        }
+    }
+    private static class Cell {
+        private char op;
+        private Cell left, right;
+        private Poly value;
+    }
+    private static class Parser {
+        private Tokenizer tk;
+        Parser( Tokenizer tk ) {
+            this.tk = tk;
+        }
+        public Cell expr() {
+            Cell res = f02(f01(f00()));
+            assert res != null;
+            return res;
+        }
+        private Cell f02( Cell left ) {
+            Cell x = null;
+            if ( !tk.hasNext() ) return left;
+            char ch = tk.peekNext();
+            if ( ch == '+' ) {
+                x = new Cell();
+                tk.advance();
+                x.op = ch;
+                x.left = left; x.right = f01(f00());
+                return f02(x);
+            }
+            return left;
+        }
+        private Cell f01( Cell left ) {
+            Cell x = null;
+            if ( !tk.hasNext() ) return left;
+            char ch = tk.peekNext();
+            if ( ch == '*' ) {
+                x = new Cell();
+                x.op = ch;
+                tk.advance();
+                x.left = left;
+                x.right = f00();
+                return f01(x);
+            }
+            return left;
+        }
+        private Cell f00() {
+            Cell x = null;
+            if ( !tk.hasNext() ) return x;
+            char ch = tk.peekNext();
+            if ( 'a' <= ch && ch <= 'z' ) {
+                x = new Cell();
+                x.op = ch;
+                tk.advance();
+                return x;
+            }
+            assert ch == '(';
+            if ( ch == '(' ) {
+                x = new Cell();
+                x.op = ch;
+                tk.advance();
+                x.left = expr();
+                assert tk.peekNext() == ')': "ch = "+ch;
+                tk.advance();
+            }
+            assert x != null;
+            return x;
+        }
+    }
+    Poly eval( Cell x ) {
+        if ( x == null ) {
+            return null;
+        }
+        if ( x.left != null && x.right != null ) {
+            if ( x.op == '+' )
+                return eval(x.left).add(eval(x.right));
+            assert x.op == '*';
+            return eval(x.left).multiply(eval(x.right));
+        }
+        if ( x.left == null && x.right == null ) {
+            assert 'a' <= x.op && x.op <= 'z';
+            return new Poly(x.op);
+        }
+        return eval(x.left);
+    }
+    boolean bfcheck( String s, String t ) {
+        int u = 0, v = 0;
+        for ( Character ch: s.toCharArray() )
+            if ( 'a' <= ch && ch <= 'z' )
+                u |= (1<<(ch-'a'));
+        for ( Character ch: t.toCharArray() )
+            if ( 'a' <= ch && ch <= 'z' )
+                v |= (1<<(ch-'a'));
+        return u==v;
+    }
+    long f( Cell x, Map<Character,Long> val ) {
+        assert x != null;
+        if ( 'a' <= x.op && x.op <= 'z' )
+            return val.get(x.op);
+        if ( x.op == '(' )
+            return f(x.left,val);
+        if ( x.op == '+' )
+            return f(x.left,val)+f(x.right,val);
+        return f(x.left,val)*f(x.right,val);
+    }
+    boolean randCheck( Cell r, Cell t, List<Character> lst ) {
+        Map<Character,Long> cnt = new HashMap<>();
+        int i,j,k,n = lst.size();
+        for ( int it = 0; it < 3; ++it ) {
+            for ( i = 0; i < n; ++i )
+                cnt.put(lst.get(i),(long)(ThreadLocalRandom.current().nextInt()));
+            if ( f(r,cnt) != f(t,cnt) )
+                return false;
+        }
+        return true;
+    }
+    void go() throws Exception {
+        String s,t;
+        int i,j,k;
+        for ( ;(s = br.readLine()) != null && '0' != s.charAt(0); ) {
+            Scanner scan = new Scanner(s);
+            Tokenizer S = new Tokenizer(t=scan.next()), T = new Tokenizer(s=scan.next());
+            if ( !bfcheck(s,t) ) {
+                bw.write("N\n");
+                continue ;
+            }
+            List<Character> lst = new ArrayList<>();
+            for ( Character u: s.toCharArray() )
+                if ( 'a' <= u && u <= 'z' )
+                    lst.add(u);
+            Parser ps = new Parser(S), pt = new Parser(T);
+            Cell x = ps.expr(), y = pt.expr();
+            assert x != null;
+            assert y != null;
+            bw.write(randCheck(x,y,lst)?"Y\n":"N\n");
+            /*
+            Poly ss = eval(x), tt = eval(y);
+            assert ss != null;
+            assert tt != null;
+            //System.out.println(ss.toString());
+            //System.out.println(tt.toString());
+            bw.write(ss.compareTo(tt)==0?"Y\n":"N\n");*/
+        }
+        bw.flush();
+    }
+}
+
