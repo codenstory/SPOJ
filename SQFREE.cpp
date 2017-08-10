@@ -1,4 +1,7 @@
 /*
+ * SQFREE
+ * TOPIC: Mobius function, sieve, square-free numbers
+ * status: Accepted
  */
 #include <algorithm>
 #include <iostream>
@@ -6,24 +9,33 @@
 #include <cstdlib>
 #include <cstring>
 #include <vector>
-#define N (100000000000001)
+#include <cmath>
+#define N 10000001
 typedef long long i64;
 using namespace std;
 
-bool e[N],m[N];
+bool o[N];
+int m[N];
+vector<i64> s;
 
 int main() {
-	i64 i,j,k,ts,n;
-	for(e[2]=true,i=3;i<N;e[i]=true,i+=2);
-	/*for(i=0;i<N;m[i++]=true);
+	i64 i,j,k,t,ts,n;
+	for(m[i=1]=1;++i<N;m[i]=-1);
+	for(i=2;i<N;o[i++]=true);
 	for(i=2;i<N;++i)
-		if(e[i])
-			for(j=i+i,k=2;j<N;e[j]=false,j+=i,++k)
-				if(0==(k%i))m[j]=false;
-				*/
-	for ( scanf("%lld",&ts); ts--; ) {
-		scanf("%lld",&n);
-	}
+		for(j=i+i,k=2;o[i]&&j<N;o[j]=false,j+=i,++k){
+			if(o[j]){
+				m[j]=-1;
+				if(!(k%i))m[j]=0;
+			}
+			else{
+				if(!(k%i))m[j]=0;
+				else m[j]*=-1;
+			}
+		}
+	for(i=1;i<N;++i)if(m[i])s.push_back(i);
+	for(scanf("%lld",&ts);ts--;printf("%lld\n",k))
+		for(k=0,scanf("%lld",&n),i=0;i<(int)s.size()&&(j=s[i]*s[i])<=n;k+=n/j*m[s[i++]]);
 	return 0;
 }
 
