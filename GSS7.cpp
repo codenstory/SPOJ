@@ -24,7 +24,7 @@ struct bundle {
 	bundle() { prefix=suffix=sum=bestsum=0; }
 	bundle( i64 p, i64 s, i64 sm, i64 bs ) : prefix(p), suffix(s), sum(sm), bestsum(bs) {};
 	void update_with( const bundle &a, const bundle &b ) {
-		if ( a.bestsum == -oo && b.bestsum == -oo )
+		if ( a.bestsum == -oo && b.bestsum == -oo ) 
 			return ;
 		if ( a.bestsum == -oo ) {
 			bestsum = b.bestsum;
@@ -41,9 +41,7 @@ struct bundle {
 			return ;
 		}
 
-		bestsum = max(max(a.bestsum,b.bestsum),a.sum+b.prefix);
-		bestsum = max(bestsum,a.suffix+b.sum);
-		bestsum = max(0LL,max(bestsum,a.suffix+b.prefix));
+		bestsum = max(max(a.bestsum,b.bestsum),a.suffix+b.prefix);
 
 		prefix = max(0LL,max(a.prefix,a.sum+b.prefix));
 		suffix = max(0LL,max(b.suffix,b.sum+a.suffix));
@@ -200,12 +198,12 @@ private:
 			i64 *c = new i64[k];
 			assert( c ) ;
 			for ( int *p = head[i]; p <= tail[i]; ++p )
-				c[p-head[i]] = c[*p];
+				c[p-head[i]] = a[*p];
 			st[i] = new ST(c,k);
-			printf("[%d:]",i);
+			/*printf("[%d:]",i);
 			for ( int *p = head[i]; p <= tail[i]; ++p )
 				printf(" %d",1+*p);
-			puts("");
+			puts("");*/
 		}
 	}
 
@@ -258,10 +256,8 @@ private:
 			h = *head[which_chain[x]];
 			if ( d[h] > d[ancestor] )
 				candidate = sx->query(pos_in_chain[h],pos_in_chain[x]);
-			else {
+			else 
 				candidate = sx->query(pos_in_chain[ancestor]+1,pos_in_chain[x]);
-				printf("%d %d, Here %lld\n",pos_in_chain[ancestor]+1,pos_in_chain[x],candidate.bestsum);
-			}
 			tmp = res, res.update_with(tmp,candidate);
 		}
 		return res;
@@ -297,15 +293,12 @@ public:
 
 	void update( int x, int y, i64 newval ) {
 		int z = lca(x,y);
-		printf("lca(%d,%d) = %d\n",x+1,y+1,z+1);
 		_update(z,x,newval), _update(z,y,newval), _update(z,z,newval);
 	}
 
 	i64 query( int x, int y ) {
 		int z = lca(x,y);
-		printf("lca(%d,%d) = %d\n",x+1,y+1,z+1);
 		bundle a = _query(z,x), b = _query(z,y), c = _query(z,z), res, rx,ry, rrx, rry;
-		printf("%lld %lld\n",a.bestsum,b.bestsum);
 		if ( z == x ) {
 			return max(max(b.bestsum,c.bestsum),c.sum+b.prefix);
 		}
