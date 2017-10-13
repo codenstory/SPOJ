@@ -1,7 +1,7 @@
 /*
  * GSS7
  * TOPIC: heavy-light decomposition, lazy propagation segment tree
- * status: in progress
+ * status: Accepted
  */
 #include <algorithm>
 #include <cassert>
@@ -12,10 +12,11 @@
 #define L(x) ((x)<<1)
 #define R(x) (1|L(x))
 #define oo (1LL<<30)
-#define N (1<<17)
+#define SH 19
+#define N (1<<SH)
 #define MAXE (N<<1)
 #define NONE (-1)
-#define MAXK (20)
+#define MAXK (SH)
 using namespace std;
 typedef long long i64;	
 
@@ -48,6 +49,9 @@ struct bundle {
 
 		sum = a.sum+b.sum;
 	}
+	void reverse() {
+		swap(prefix,suffix);
+	}
 };
 
 class ST {
@@ -58,7 +62,9 @@ private:
 	int m,n;
 
 	void assign_value( int v, int i, int j, i64 nv ) {
+		assert( i <= j );
 		updates_pending[v]=(i<j);
+		if ( i == j ) assert( !updates_pending[v] );
 		sum[v] = (j-i+1)*(value[v]=nv);
 		bestsum[v]=suffix[v]=prefix[v]=max(0LL,sum[v]);
 	}
@@ -72,10 +78,13 @@ private:
 			bestsum[v] = max(bestsum[v],suffix[L(v)]+prefix[R(v)]);
 		}
 	}
+
 	void init( int v, int i, int j ) {
+		assert( i <= j );
 		updates_pending[v] = false;
 		if ( i == j ) {
 			assign_value(v,i,j,a[i]);
+			assert( !updates_pending[v] );
 			return ;
 		}
 		int k = (i+j)>>1;
@@ -84,46 +93,61 @@ private:
 	}
 	void push_down( int v, int i, int j ) {
 		if ( !updates_pending[v] ) return ;
+		assert( i < j );
 		int k = (i+j)>>1;
 		assign_value(L(v),i,k,value[v]), assign_value(R(v),k+1,j,value[v]);
 		updates_pending[v] = false;
 	}
 	void update( int v, int i, int j, int qi, int qj, i64 newval ) {
-		if ( qi <= i && j <= qj ) {
+		if ( qi == i && j == qj ) {
 			assign_value(v,i,j,newval);
 			return ;
 		}
-		if ( i == j ) return ;
+		//assert( i <= qi && qj <= j );
 		int k = (i+j)>>1;
 		push_down(v,i,j);
 
-		if ( qj < i || qi > j ) return ;
-
-		update(L(v),i,k,qi,qj,newval), update(R(v),k+1,j,qi,qj,newval);
+		if ( qj <= k ) update(L(v),i,k,qi,qj,newval);
+		else if ( qi >= k+1 ) update(R(v),k+1,j,qi,qj,newval);
+		else 
+			update(L(v),i,k,qi,k,newval), update(R(v),k+1,j,k+1,qj,newval);
 		push_up(v,i,j);
 	}
 	bundle query( int v, int i, int j, int qi, int qj ) {
+		bundle res;
 		int k = (i+j)>>1;
+		//assert( i <= qi && qj <= j );
+		if ( updates_pending[v] ) {
+			//assert( 0 );
+			bundle res;
+			res.prefix = res.suffix = res.bestsum = max(0LL,res.sum=(qj-qi+1)*value[v]);
+			return res;
+		}
 		push_down(v,i,j);
-		if ( qj < i || qi > j )
-			return bundle(-oo,-oo,-oo,-oo);
-		if ( qi <= i && j <= qj ) 
+		if ( qi == i && j == qj ) 
 			return bundle(prefix[v],suffix[v],sum[v],bestsum[v]);
-		bundle a = query(L(v),i,k,qi,qj), b = query(R(v),k+1,j,qi,qj), res;
-		push_up(v,i,j);
-		res.update_with(a,b);
-		return res;
+		assert( i < j );
+		if ( qj <= k )
+			return query(L(v),i,k,qi,qj);
+		else if ( qi >= k+1 )
+			return query(R(v),k+1,j,qi,qj);
+		else {
+			bundle a = query(L(v),i,k,qi,k), b = query(R(v),k+1,j,k+1,qj);
+			push_up(v,i,j);
+			res.update_with(a,b);
+			return res;
+		}
 	}
 public:
 	ST( i64 *a, int n ) {
-		m = (n<<1)+0x20;
+		m = (n*6)+0x20;
 		prefix = new i64[m];
 		suffix = new i64[m];
 		sum = new i64[m];
 		bestsum = new i64[m];
 		value = new i64[m];
 		updates_pending = new bool[m];
-		memset(updates_pending,0,sizeof updates_pending);
+		for ( int i = 0; i < m; updates_pending[i++] = false ) ;
 		this->n = n;
 		this->a = a;
 		init(1,0,n-1);
@@ -200,7 +224,8 @@ private:
 			for ( int *p = head[i]; p <= tail[i]; ++p )
 				c[p-head[i]] = a[*p];
 			st[i] = new ST(c,k);
-			/*printf("[%d:]",i);
+			/*
+			printf("[%d:]",i);
 			for ( int *p = head[i]; p <= tail[i]; ++p )
 				printf(" %d",1+*p);
 			puts("");*/
@@ -210,10 +235,13 @@ private:
 	int up( int x, unsigned int u ) {
 		for ( int k = 0; u; u >>= 1, ++k )
 			if ( u & 1 ) x = anc[x][k];
+		assert( 0 <= x && x < n );
 		return x;
 	}
 
 	int lca( int x, int y ) {
+		assert( 0 <= x && x < n );
+		assert( 0 <= y && y < n );
 		if ( d[x] > d[y] )
 			return lca(up(x,d[x]-d[y]),y);
 		if ( d[x] < d[y] )
@@ -258,7 +286,7 @@ private:
 				candidate = sx->query(pos_in_chain[h],pos_in_chain[x]);
 			else 
 				candidate = sx->query(pos_in_chain[ancestor]+1,pos_in_chain[x]);
-			tmp = res, res.update_with(tmp,candidate);
+			tmp = res, res.update_with(candidate,tmp);
 		}
 		return res;
 	}
@@ -292,14 +320,25 @@ public:
 	}
 
 	void update( int x, int y, i64 newval ) {
+		assert( 0 <= min(x,y) && max(x,y) < n );
+		if ( x == y ) {
+			_update(x,x,newval);
+			return ;
+		}
 		int z = lca(x,y);
+		//printf("lca(%d,%d) = %d\n",x,y,z);
 		_update(z,x,newval), _update(z,y,newval), _update(z,z,newval);
 	}
 
 	i64 query( int x, int y ) {
+		assert( 0 <= min(x,y) && max(x,y) < n );
 		int z = lca(x,y);
+		//printf("lca(%d,%d) = %d\n",x,y,z);
 		bundle a = _query(z,x), b = _query(z,y), c = _query(z,z), res, rx,ry, rrx, rry;
+		if ( x == y ) 
+			return c.bestsum;
 		if ( z == x ) {
+			//printf("%lld %lld %lld\n",c.sum,b.sum,b.prefix);
 			return max(max(b.bestsum,c.bestsum),c.sum+b.prefix);
 		}
 		else if ( z == y ) {
@@ -307,25 +346,28 @@ public:
 		}
 		else {
 			rx.update_with(c,a);
-			rrx.update_with(b,rx);
-			ry.update_with(c,b);
-			rry.update_with(a,ry);
-			return max(rrx.bestsum,rry.bestsum);
+			ry = b, ry.reverse();
+			res.update_with(ry,rx);
+			return max(0LL,res.bestsum);
 		}
 	}
-
 } G;
 
 int main() {
-	int i,j,k,qr,comm,x,y;
+	int i,j,k,qr,comm,x,y,cs = 0,cas = 0;
 	i64 newval;
 	for ( ;G.read_graph(); ) {
+		++cas;
 		for ( G.preprocess(), scanf("%d",&qr); qr--; ) {
-			scanf("%d %d %d",&comm,&x,&y);
-			if ( comm == 2 ) 
-				scanf("%lld",&newval), G.update(--x,--y,newval);
-			else 
-				printf("%lld\n",G.query(--x,--y));
+			scanf("%d %d %d",&comm,&x,&y), --x, --y;
+			if ( comm == 2 ) {
+				assert( 1 == scanf("%lld",&newval) );
+				//printf("Coloring the path %d --> %d to %lld\n",x+1,y+1,newval);
+				G.update(x,y,newval);
+			}
+			else {
+				printf("%lld\n",G.query(x,y));
+			}
 		}
 	}
 	return 0;
