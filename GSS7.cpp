@@ -21,11 +21,34 @@ typedef long long i64;
 
 struct bundle {
 	i64 prefix, suffix, sum, bestsum;
+	bundle() { prefix=suffix=sum=bestsum=0; }
 	bundle( i64 p, i64 s, i64 sm, i64 bs ) : prefix(p), suffix(s), sum(sm), bestsum(bs) {};
-	void update( const bundle &a, const bundle &b ) {
+	void update_with( const bundle &a, const bundle &b ) {
+		if ( a.bestsum == -oo && b.bestsum == -oo )
+			return ;
+		if ( a.bestsum == -oo ) {
+			bestsum = b.bestsum;
+			prefix = b.prefix;
+			suffix = b.suffix;
+			sum = b.sum;
+			return ;
+		}
+		if ( b.bestsum == -oo ) {
+			bestsum = a.bestsum;
+			prefix = a.prefix;
+			suffix = a.suffix;
+			sum = a.sum;
+			return ;
+		}
+
 		bestsum = max(max(a.bestsum,b.bestsum),a.sum+b.prefix);
 		bestsum = max(bestsum,a.suffix+b.sum);
-		bestsum = max(bestsum,a.suffix+b.prefix);
+		bestsum = max(0LL,max(bestsum,a.suffix+b.prefix));
+
+		prefix = max(0LL,max(a.prefix,a.sum+b.prefix));
+		suffix = max(0LL,max(b.suffix,b.sum+a.suffix));
+
+		sum = a.sum+b.sum;
 	}
 };
 
@@ -81,20 +104,21 @@ private:
 		update(L(v),i,k,qi,qj,newval), update(R(v),k+1,j,qi,qj,newval);
 		push_up(v,i,j);
 	}
-	i64 query( int v, int i, int j, int qi, int qj ) {
+	bundle query( int v, int i, int j, int qi, int qj ) {
 		int k = (i+j)>>1;
 		push_down(v,i,j);
 		if ( qj < i || qi > j )
-			return -oo;
+			return bundle(-oo,-oo,-oo,-oo);
 		if ( qi <= i && j <= qj ) 
-			return bestsum[v];
-		i64 result = max(query(L(v),i,k,qi,qj),query(R(v),k+1,j,qi,qj));
+			return bundle(prefix[v],suffix[v],sum[v],bestsum[v]);
+		bundle a = query(L(v),i,k,qi,qj), b = query(R(v),k+1,j,qi,qj), res;
 		push_up(v,i,j);
-		return result;
+		res.update_with(a,b);
+		return res;
 	}
 public:
 	ST( i64 *a, int n ) {
-		m = (n<<1);
+		m = (n<<1)+0x20;
 		prefix = new i64[m];
 		suffix = new i64[m];
 		sum = new i64[m];
@@ -115,7 +139,9 @@ public:
 		delete updates_pending;
 	}
 	void batch_assign( int qi, int qj, i64 newval ) { update(1,0,n-1,qi,qj,newval); }
-	i64 query( int qi, int qj ) 					{ return query(1,0,n-1,qi,qj); }
+	bundle query( int qi, int qj ) { 
+		return query(1,0,n-1,qi,qj);
+	}
 };
 
 class Graph {
@@ -146,16 +172,19 @@ private:
 		return card[x];
 	}
 
+	void put_into_chain( int x ) {
+		pos_in_chain[x] = ptr-head[chain_id], which_chain[*ptr++ = x] = chain_id, tail[chain_id] = ptr-1;
+	}
+
 	void hld( int x, int edge_id ) {
 		int i,y;
 		assert( seen[x] != yes );
 		seen[x] = yes;
-		if ( (i=edge_id) == NONE ) {
-			if ( chain_id != NONE )
-				tail[chain_id] = ptr-1;
+		if ( (i=edge_id) == NONE ) 
 			head[++chain_id] = ptr;
-		}
-		pos_in_chain[x] = ptr-head[chain_id], which_chain[*ptr++ = x] = chain_id;
+
+		put_into_chain(x);
+
 		if ( best_son[x] != NONE ) 
 			hld(to[best_son[x]],best_son[x]);
 
@@ -167,10 +196,16 @@ private:
 	void populate_chains() {
 		for ( int k,j,i = 0; i <= chain_id; ++i ) {
 			k = tail[i]-head[i]+1;
-			i64 *c = (i64 *)malloc(k*sizeof *c);
+			assert( k >= 1 );
+			i64 *c = new i64[k];
+			assert( c ) ;
 			for ( int *p = head[i]; p <= tail[i]; ++p )
 				c[p-head[i]] = c[*p];
 			st[i] = new ST(c,k);
+			printf("[%d:]",i);
+			for ( int *p = head[i]; p <= tail[i]; ++p )
+				printf(" %d",1+*p);
+			puts("");
 		}
 	}
 
@@ -193,6 +228,43 @@ private:
 				x = anc[x][k-1], y = anc[y][k-1];
 		}
 		return anc[x][0];
+	}
+
+	void _update( int ancestor, int x, i64 newval ) {
+		if ( x == ancestor ) {
+			ST *sx = st[which_chain[x]];
+			sx->batch_assign(pos_in_chain[x],pos_in_chain[x],newval);
+			return ;
+		}
+		for ( int h; x != NONE && d[ancestor] < d[x]; x = anc[h][0] ) {
+			ST *sx = st[which_chain[x]];
+			h = *head[which_chain[x]];
+			if ( d[h] > d[ancestor] )
+				sx->batch_assign(pos_in_chain[h],pos_in_chain[x],newval);
+			else
+				sx->batch_assign(pos_in_chain[ancestor]+1,pos_in_chain[x],newval);
+		}
+	}
+
+	bundle _query( int ancestor, int x ) {
+		bundle candidate,tmp,res;
+		if ( ancestor == x ) {
+			ST *sx = st[which_chain[x]];
+			res = sx->query(pos_in_chain[x],pos_in_chain[x]);
+			return res;
+		}
+		for ( int h; x != NONE && d[ancestor] < d[x]; x = anc[h][0] ) {
+			ST *sx = st[which_chain[x]];
+			h = *head[which_chain[x]];
+			if ( d[h] > d[ancestor] )
+				candidate = sx->query(pos_in_chain[h],pos_in_chain[x]);
+			else {
+				candidate = sx->query(pos_in_chain[ancestor]+1,pos_in_chain[x]);
+				printf("%d %d, Here %lld\n",pos_in_chain[ancestor]+1,pos_in_chain[x],candidate.bestsum);
+			}
+			tmp = res, res.update_with(tmp,candidate);
+		}
+		return res;
 	}
 
 public:
@@ -224,6 +296,29 @@ public:
 	}
 
 	void update( int x, int y, i64 newval ) {
+		int z = lca(x,y);
+		printf("lca(%d,%d) = %d\n",x+1,y+1,z+1);
+		_update(z,x,newval), _update(z,y,newval), _update(z,z,newval);
+	}
+
+	i64 query( int x, int y ) {
+		int z = lca(x,y);
+		printf("lca(%d,%d) = %d\n",x+1,y+1,z+1);
+		bundle a = _query(z,x), b = _query(z,y), c = _query(z,z), res, rx,ry, rrx, rry;
+		printf("%lld %lld\n",a.bestsum,b.bestsum);
+		if ( z == x ) {
+			return max(max(b.bestsum,c.bestsum),c.sum+b.prefix);
+		}
+		else if ( z == y ) {
+			return max(max(a.bestsum,c.bestsum),c.sum+a.prefix);
+		}
+		else {
+			rx.update_with(c,a);
+			rrx.update_with(b,rx);
+			ry.update_with(c,b);
+			rry.update_with(a,ry);
+			return max(rrx.bestsum,rry.bestsum);
+		}
 	}
 
 } G;
@@ -233,13 +328,11 @@ int main() {
 	i64 newval;
 	for ( ;G.read_graph(); ) {
 		for ( G.preprocess(), scanf("%d",&qr); qr--; ) {
-			scanf("%d",&comm);
-			if ( comm == 2 ) {
-				scanf("%d %d %lld",&x,&y,&newval);
-				G.update(--x,--y,newval);
-			}
-			else {
-			}
+			scanf("%d %d %d",&comm,&x,&y);
+			if ( comm == 2 ) 
+				scanf("%lld",&newval), G.update(--x,--y,newval);
+			else 
+				printf("%lld\n",G.query(--x,--y));
 		}
 	}
 	return 0;
