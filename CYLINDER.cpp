@@ -1,6 +1,6 @@
 /**
  * CYLINDER
- * status: WA
+ * status: Accepted
  * TOPIC: maths
  */
 #include <bits/stdc++.h>
@@ -14,11 +14,12 @@ const double pi= 2*acos(0.00);
 long double f( long double t ) {
     long double R= min(w/2,t/2);
     long double ans= numeric_limits<long double>::min();
+    if ( t > w ) return ans;
     if ( h-t >= 2*pi*R and w >= 2*pi*R )
         return max(h-t,w)*R*R;
     if ( h-t >= 2*pi*R )
         return w*R*R;
-    if ( w >= 2*pi*R )
+    if ( w >= 2*pi*R and h-t >= 0 )
         return (h-t)*R*R;
     return ans;
 }
@@ -46,15 +47,26 @@ int main() {
                 a= na;
             else b= nb;
         }
-        vector<long double> vec= {0,h,w,
-                                  min(h,max((long double)0,h/(pi+1))),
-                                  w/pi,
-                                  min(h,max((long double)0.00,h-pi*w))};
+        if ( w > h ) swap(w,h);
+        double d=double(w)*1.0/pi;
+        double height=double(h)-d;
+        double vol1=pi*d*d*height*1.0/(4*1.0);
+        d=double(h)*1.0/(pi+1);
+        if(d>w)
+            d=double(w);
+        height=double(w);
+        double vol2=pi*d*d*height*1.0/(4*1.0);
+        if(vol1>vol2)
+            vol2=vol1;
+        printf("%.3f\n",vol2);
+        /*
+        vector<long double> vec= {0,w/pi,h/(pi+1)};
         transform(vec.begin(),vec.end(),vec.begin(),[&]( long double x ) {
             return pi*f(x);
         });
         auto ans= *(max_element(begin(vec),end(vec)));
-        printf("%.3Lf\n",(ans));
+        cout << fixed << setprecision(3) << ans << endl;
+         */
     }
 }
 
