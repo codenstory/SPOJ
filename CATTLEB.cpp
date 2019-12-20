@@ -1,12 +1,12 @@
 /**
  * CATTLEB
- * TOPIC: simulation, maths
- * status:
+ * TOPIC: simulation, maths, segments, sweepline, priority queue
+ * status: Accepted
  */
 #include <bits/stdc++.h>
 #define N (50100)
 #define tol (1e-6)
-#define PQ 0
+#define PQ 1
 
 struct plate {
     std::pair<double,double> p;
@@ -47,17 +47,20 @@ time_interval operator * ( const plate &S, const bruiser &r ) {
         // we check if "s" is initially inside "r"
         auto diff= S.p-r.p;
         auto dx= diff.first, dy= diff.second;
-        return dx*dx+dy*dy<=r.R*r.R ? std::make_pair(std::numeric_limits<double>::min(),std::numeric_limits<double>::max()) :
-            empty_interval;
+        return dx*dx+dy*dy<=r.R*r.R ?
+        std::make_pair(0.00,std::numeric_limits<double>::max()):empty_interval;
     }
+    a= velo.first*velo.first+velo.second*velo.second;
     double b= 2*(coeff*velo);
-    double c= std::hypot(coeff.first,coeff.second)-r.R*r.R;
+    double c= coeff.first*coeff.first+coeff.second*coeff.second-r.R*r.R;
     double discr= b*b-4*a*c;
-    if ( discr <= -tol )
+    if ( discr < 0 )
         return empty_interval;
     double sq= sqrt(discr);
     double t1= (-b-sq)/2/a, t2= (-b+sq)/2/a;
-    return {t1,t2};
+    if ( t2 < 0 ) return empty_interval;
+    if ( t1 >= 0 ) return {t1,t2};
+    return {0.00,t2};
 }
 
 struct event {
