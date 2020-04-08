@@ -1,6 +1,6 @@
 /**
  * TOPIC: probabilities, Binomial distribution, binary search, arithmetic sequence
- * status:
+ * status: Accepted
  */
 #include <bits/stdc++.h>
 using i64= std::int64_t;
