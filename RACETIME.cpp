@@ -64,7 +64,8 @@ class rb_tree {
 
     void rotate( std::shared_ptr<cell> &x, t_direction i ) {
         assert( i == L or i == R );
-        assert( x != nil and x->son[i^1u] != nil );
+        assert( x != nil );
+        assert( x->son[i^1u] != nil );
         auto y= x->son[i^1u];
         if ( (x->son[i^1u]= y->son[i]) != nil )
             y->son[i]->p= x;
@@ -79,6 +80,7 @@ class rb_tree {
     }
 
     void fixup( std::shared_ptr<cell> &x ) {
+        assert( x != nil );
         for (;x != root and color_of(x) == Black;) {
             auto i= which_son(x);
             auto y= x->p->son[i^1u];
@@ -114,27 +116,16 @@ class rb_tree {
 
         auto to_reset= item;
 
-        auto z= (item->son[R]!=nil?item->son[R]:item->son[L]);
-        if ( z != nil and z == item->son[R] ) {
-            auto y= z;
-            assert( y != nil );
-            for ( ;y->son[L] != nil; y= y->son[L] ) ;
-            assert( y != nil and y->son[L] == nil );
-            y->p->son[L]= y->son[R], y->son[R]->p= y->p;
-            propagate(y->p);
-            item->freq= y->freq, item->val= y->val;
-            propagate(item);
-            z= y->son[R], to_reset= y;
-        } else {
-            if ( item == root )
-                z->p= nil, root= z, propagate(z);
-            else {
-                auto i= which_son(item);
-                item->p->son[i]= z, z->p= item->p, propagate(z->p);
-            }
+        // TODO
+        auto z= item;
+
+        if ( z->son[R] == nil ) {
+            if ( z->p == nil )
+                root= z->son[L];
+            else z->p->son[which_son(z)]= z->son[L];
         }
-        if ( color_of(to_reset) == Black )
-            fixup(z);
+
+
         to_reset.reset();
     }
 
