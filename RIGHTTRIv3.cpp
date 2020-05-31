@@ -1,6 +1,6 @@
 /**
  * RIGHTTRI
- * status: W.I.P., TLE
+ * status: Accepted
  * TOPIC: analytical geometry, rotations, fractions, maths
  */
 #include <bits/stdc++.h>
@@ -45,6 +45,10 @@ struct frac {
         if ( x == 0 ) {
             y= 1;
         }
+        if ( y < 0 ) {
+            x= -x, y= -y;
+        }
+        assert( y >= 0 );
         //value= x==0?std::make_pair(0.00,0.00):std::make_pair(x+0.00,y+0.00);
         if ( x != 0 )
             w= val.first/(val.second+0.00);
@@ -67,66 +71,46 @@ bool operator == ( const frac &a, const frac &b ) {
 }
 
 struct angle {
-    frac cosine;
-    frac sine;
-    int sc;
-    int ss;
-    mutable int q= -1;
-    int quadrant() const {
-        if ( q != -1 )
-            return q;
-        if ( sc >= 0 and ss >= 0 )
-            return q= 1;
-        if ( sc <= 0 and ss >= 0 )
-            return q= 2;
-        if ( sc >= 0 and ss <= 0 )
-            return q= 4;
-        return q= 3;
-    }
+    frac slope;
 };
 
 std::set<std::pair<int,int>> rel= {{3,4},{4,1},{1,2}};
 bool is_less[5][5];
 
 bool operator < ( const angle &a, const angle &b ) {
-    if ( a.quadrant() == b.quadrant() ) {
-        switch ( a.quadrant() ) {
-            case 1: return b.cosine < a.cosine;
-            case 2: return b.sine < a.sine;
-            case 3: return b.cosine < a.cosine;
-            case 4: return a.cosine < b.cosine;
-            default: assert( false );
-        }
-    } else {
-        return is_less[a.quadrant()][b.quadrant()];
-    }
+    assert( a.slope.val.second > 0 );
+    assert( b.slope.val.second > 0 );
+    return a.slope.val.first*b.slope.val.second < a.slope.val.second*b.slope.val.first;
 }
 
 bool operator == ( const angle &a, const angle &b ) {
     //return not(a < b or b < a);
-    return std::tie(a.cosine,a.sine,a.sc,a.ss) == std::tie(b.cosine,b.sine,b.sc,b.ss);
+    return a.slope.val == b.slope.val;
 }
 
 angle get_ang( const cell &a, const cell &b ) {
     i64 u= b.first-a.first, v= b.second-a.second;
-    i64 co= u*u, si= v*v;
-    i64 len= co + si;
-    i64 cc= gcd(co,len), ss= gcd(si,len);
+    i64 co= labs(u), si= labs(v);
+    i64 g= gcd(co,si);
+    u/= g, v/= g;
     angle ang{
-        .cosine= frac{co/cc,len/cc},
-        .sine  = frac{si/ss,len/ss},
-        .sc= sign_of(u),
-        .ss= sign_of(v)
+        .slope= frac{v,u}
     };
     return ang;
 }
 
 angle rotate90( const angle &a ) {
+    i64 co= a.slope.val.second, si= a.slope.val.first;
     angle b{
-        .cosine= a.sine,
-        .sine= a.cosine,
-        .sc= -a.ss,
-        .ss= a.sc
+        .slope= frac{co,-si}
+    };
+    return b;
+}
+
+angle rotatem90( const angle &a ) {
+    i64 co= a.slope.val.second, si= a.slope.val.first;
+    angle b{
+            .slope= frac{-co,si}
     };
     return b;
 }
@@ -143,10 +127,8 @@ struct std::hash<angle> {
 
         // Modify 'seed' by XORing and bit-shifting in
         // one member of 'Key' after the other:
-        hash_combine(seed,hash_value(a.sine.val.first));
-        hash_combine(seed,hash_value(a.sine.val.second));
-        hash_combine(seed,hash_value(a.cosine.val.first));
-        hash_combine(seed,hash_value(a.cosine.val.second));
+        hash_combine(seed,hash_value(a.slope.val.first));
+        hash_combine(seed,hash_value(a.slope.val.second));
 
         // Return the result.
         return seed;
@@ -171,23 +153,30 @@ i64 f( const int idx ) {
 }
 
 i64 ff( const int idx ) {
-    i64 ans= 0;
+    i64 ans= 0, infx= 0, infy= 0;
     int i;
-    std::unordered_map<angle,i64> cnt[3][3];
+    std::unordered_map<angle,i64> cnt;
     for ( i= 0; i < n; ++i )
         if ( i != idx ) {
-            auto z= get_ang(pts[idx],pts[i]);
-            ++cnt[z.sc+1][z.ss+1][z];
+            if ( pts[idx].first == pts[i].first ) {
+                ++infx;
+                continue ;
+            }
+            if ( pts[idx].second == pts[i].second ) {
+                ++infy;
+                continue ;
+            }
+            ++cnt[get_ang(pts[idx],pts[i])];
         }
-    for ( int sc= -1; sc <= 1; ++sc )
-        for ( int ss= -1; ss <= 1; ++ss ) {
-        for (const auto &[key, val]: cnt[sc+1][ss+1]) {
-            auto T = rotate90(key);
-            i64 kappa = cnt[T.sc+1][T.ss+1].count(T) ? cnt[T.sc+1][T.ss+1][T] : 0;
-            ans += val * kappa;
-        }
+    for ( const auto &[key, val]: cnt ) {
+        auto T = rotate90(key);
+        i64 kappa = cnt.count(T) ? cnt[T] : 0;
+        //T= rotatem90(key);
+        //i64 tau= cnt.count(T) ? cnt[T] : 0;
+        i64 tau= 0;
+        ans += val * (kappa+tau);
     }
-    return ans;
+    return ans+infx*infy;
 }
 
 int main() {
