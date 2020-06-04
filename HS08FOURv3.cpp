@@ -3,8 +3,7 @@
 #define A 3
 #define W (10)
 #define M 1000000007ll
-using i64= int;
-#define S (43)
+using i64= std::int64_t;
 template<typename T>
 using vc= std::vector<T>;
 using tmat= vc<vc<i64>>;
@@ -12,9 +11,6 @@ using tmat= vc<vc<i64>>;
 
 std::istream &is = std::cin;
 std::ostream &os = std::cout;
-
-vc<unsigned> vx;
-bool se[0x400];
 
 tmat mult(const tmat &x, const tmat &y) {
     tmat m=x,tmp=x;
@@ -27,7 +23,8 @@ tmat mult(const tmat &x, const tmat &y) {
                 if(t>=M)
                     t%=M;
                 if((tmp[i][j]+=t)>=M)
-                    tmp[i][j]-=M;
+                    if ( (tmp[i][j]-=M)>= M )
+                        tmp[i][j]%=M;
             }
     for(i=0;i<N;++i)
         for(j=0;j<N;++j)
@@ -49,7 +46,7 @@ vc<tmat> C,prt[A],D[A];
 
 tmat mpw(tmat &m,i64 n) {
     auto ax= im(m.size()),x= m;
-    for(;n;n>>=1,x=mult(x,x))
+    for(;n;n>>=1u,x=mult(x,x))
         if(n&1)ax=mult(ax,x);
     return ax;
 }
@@ -76,20 +73,28 @@ tmat &get_p( int t, unsigned u ) {
     return prt[t][u];
 }
 
-int ga(unsigned n){
-    auto res= get_p(0,n&MK(W));
-    for(int i=1;i<A and(n>>=W);++i)
-        res=mult(res,get_p(i,n&MK(W)));
-    i64 ans=0;
-    for(int i=0;i<S;++i)
-        for(int j=0;j<S; ++j)
-            if((ans+=res[i][j])>=M)
-                ans-=M;
+tmat slv(unsigned u) {
+    auto r= get_p(0,u&MK(W));
+    for(int i=1;i<A and (u>>=W);++i)
+        r=mult(r,get_p(i,u&MK(W)));
+    return r;
+}
+
+#define compat(i,j,k) (((i)!=(j)and(j)!=(k)and(k)!=(i))or((i)*(j)*(k)==0))
+#define e(i,j) ((i)|((j)<<2))
+
+int ga(unsigned n) {
+    auto u = n-2;
+    int i, j, k, t, l;
+    i64 ans = 0;
+    auto res = slv(u);
+    forn(i,CLR)forn(j,CLR)forn(k,CLR)forn(t,CLR)if ((ans+= res[e(i,j)][e(k,t)]) >= M)
+                        if ((ans -= M) >= M)
+                            ans %= M;
     return ans;
 }
 
 std::unordered_map<unsigned,int> cm;
-#define compat(i,j,k) (((i)!=(j)and(j)!=(k)and(k)!=(i))or((i)*(j)*(k)==0))
 
 int main() {
     std::ios_base::sync_with_stdio(false), std::cin.tie(nullptr);
@@ -99,41 +104,22 @@ int main() {
     int i, j, k, t, ts, n;
     for (i = 0; i < 11; ++i)
         which[1 << i] = i;
-    vx.reserve(S);
-    forn(i,CLR) forn(j,CLR) forn(k,CLR)
-                if (compat(i,j,k)){
-                    unsigned u = (i | (j << 2) | (k << 4));
-                    if (not se[u])
-                        vx.emplace_back(u), se[u]= true;
-                }
-    vc<vc<int>> G(S,vc<int>(S,0));
-    forn(i,S)forn(j,S)
-        G[i][j]=G[i][j]||((vx[i]&0xf)==(vx[j]>>2));
-    auto tx= mpw(G,3);
-    forn(i,S)forn(j,S)
-        if(tx[i][j]==1){
-            unsigned u=i|(j<<6);
-            if (not cm.count(u)) {
-                auto s_= cm.size();
-                cm[u]= s_;
-            }
-        }
-    //os << cm.size() << std::endl;
-    //return 0;
-
-    tmat mtx(vx.size(), vc<i64>(S, 0));
-    assert(vx.size() == S);
-    for (i = 0; i < vx.size(); ++i)
-        for (j = 0; j < mtx[i].size(); ++j)
-            if ((vx[i] & 0xf) == (vx[j] >> 2))
-                mtx[i][j] = 1;
+    vc<vc<i64>> mtx(CLR*CLR,vc<i64>(CLR*CLR,0));
+    forn(i,CLR)forn(j,CLR)forn(k,CLR)
+            if (compat(i, j, k))
+                ++mtx[e(i,j)][e(j,k)];
+    for(i=0;i < CLR*CLR; ++i)         {
+        std::cerr << "Adj of " << i << ": ";
+        for(j= 0; j < CLR*CLR; ++j )
+            if ( mtx[i][j] )
+                std::cerr << j << ", ";
+        std::cerr << std::endl;
+    }
     for (C.resize(A), C[0] = mtx, i = 1; i < A; C[i] = mpw(C[i-1],1u<<W), ++i);
     for (t = 0; t < A; ++t)
         D[t].resize(W), D[t][0] = C[t];
-
     for (t = 0; t < A; ++t)
-        prt[t].resize(B(W)), prt[t][0] = im(S);
-
+        prt[t].resize(B(W)), prt[t][0] = im(CLR*CLR);
     for (is>>ts;ts--;){
         is >> n;
         if ( n == 0 )
@@ -142,8 +128,10 @@ int main() {
             os<<CLR<<'\n';
         else if (n==2)
             os<<CLR*CLR<<'\n';
+        else if (n==3)
+            os<<43<<'\n';
         else
-            os<<ga(n-3)<<'\n';
+            os<<ga(n)<<'\n';
     }
     return 0;
 }
