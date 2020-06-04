@@ -1,7 +1,7 @@
 #include <bits/stdc++.h>
 #define CLR 4
-#define A 5
-#define W (6)
+#define A 3
+#define W (10)
 #define M 1000000007ll
 using i64= int;
 #define S (43)
@@ -56,12 +56,20 @@ tmat mpw(tmat &m,i64 n) {
 unsigned char which[1<<11];
 #define L(k) ((k) & ((~(k))+1ul))
 
+tmat &get_d( int t, int i ) {
+    if ( D[t][i].empty() ) {
+        get_d(t,i-1);
+        D[t][i] = mult(D[t][i-1],D[t][i-1]);
+    }
+    return D[t][i];
+}
+
 tmat &get_p( int t, unsigned u ) {
     if ( prt[t][u].empty() ) {
         assert( u >= 1 );
         auto v=u&~L(u);
         assert( v < u );
-        prt[t][u]=mult(get_p(t,v),D[t][which[L(u)]]);
+        prt[t][u]=mult(get_p(t,v),get_d(t,which[L(u)]));
         assert( not prt[t][u].empty() );
     }
     return prt[t][u];
@@ -102,10 +110,9 @@ int main() {
         for (j = 0; j < mtx[i].size(); ++j)
             if ((vx[i] & 0xf) == (vx[j] >> 2))
                 mtx[i][j] = 1;
-    for (C.resize(A), C[0] = mtx, i = 1; i < A; C[i] = mpw(mtx, 1u << (i*W)), ++i);
+    for (C.resize(A), C[0] = mtx, i = 1; i < A; C[i] = mpw(C[i-1],1u<<W), ++i);
     for (t = 0; t < A; ++t)
-        for (D[t].resize(W), D[t][0] = C[t], i = 1; i < W; ++i)
-            D[t][i] = mult(D[t][i - 1], D[t][i - 1]);
+        D[t].resize(W), D[t][0] = C[t];
 
     for (t = 0; t < A; ++t)
         prt[t].resize(B(10)), prt[t][0] = im(S);
