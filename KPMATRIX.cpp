@@ -1,13 +1,15 @@
 /**
  * KPMATRIX
  * TOPIC: range trees, sweep line, rank space, counting queries
- * status:
+ * status: Accepted
  */
 #include <bits/stdc++.h>
 //using i64= std::int64_t;
 using i64= std::int32_t;
 template<typename T>
 using vc= std::vector<T>;
+using K= i64;
+using V= int;
 
 i64 getnum() {
     static int dig[256]= {0};
@@ -24,23 +26,16 @@ i64 getnum() {
     return sign*n;
 }
 
-template<typename K,typename V>
 class rank_space {
 private:
     vc<K> data;
-    std::unordered_map<K,V> mp;
 public:
-    rank_space() {data.clear(), mp.clear(); }
+    rank_space() {data.clear(); }
     explicit rank_space( const vc<K> &input ) {
         data= input, std::sort(data.begin(),data.end());
         data.erase(std::unique(data.begin(),data.end()),data.end());
-        mp.clear();
-        for ( auto i= 0; i < data.size(); ++i )
-            mp[data[i]]= i;
     }
     inline V rank( K key ) const {
-        if ( mp.count(key) )
-            return mp.find(key)->second;
         return std::lower_bound(data.begin(),data.end(),key)-data.begin();
     }
     size_t universe_size() const {
@@ -50,11 +45,10 @@ public:
 
 #define LSB(u) ((u) & ((~(u))+1ul))
 
-template<typename K,typename V>
 class rt {
 private:
     vc<V> tr;
-    rank_space<K,V> rs;
+    rank_space rs;
     size_t n{},m{};
 #define L(v) ((v)<<1u)
 #define R(v) (1u|L(v))
@@ -84,7 +78,7 @@ private:
 #undef R
 public:
     explicit rt( const vc<K> &data ) {
-        rs= rank_space<K,V>(data);
+        rs= rank_space(data);
         this->n= rs.universe_size();
         for ( NN= 1; NN <= n; NN <<= 1 ) ;
         if ( NN >= 256 ) NN= 256;
@@ -108,7 +102,7 @@ i64 solve( const vc<i64> &data, i64 A, i64 B ) {
     vc<i64> p{};
     p.reserve(data.size());
     std::partial_sum(data.begin(),data.end(),std::back_inserter(p));
-    auto T= rt<i64,unsigned char>(p);
+    auto T= rt(p);
     i64 ans= 0;
     for ( auto it= p.rbegin(); it != p.rend(); ++it )
         ans+= T.count(A+*it,B+*it+1), T.inc(*it);
@@ -134,7 +128,7 @@ vc<vc<i64>> read_input( std::istream &is, int &m, int &n ) {
 }
 
 int main() {
-    //std::ios_base::sync_with_stdio(false), std::cin.tie(nullptr);
+    std::ios_base::sync_with_stdio(false), std::cin.tie(nullptr);
     std::istream &is = std::cin;
     std::ostream &os = std::cout;
 #ifndef ONLINE_JUDGE
