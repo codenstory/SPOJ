@@ -1,5 +1,9 @@
+/**
+ * status: Accepted
+ */
 #include <bits/stdc++.h>
 #define CLR 4
+#define S (5)
 #define A 3
 #define W (10)
 #define M 1000000007ll
@@ -81,16 +85,22 @@ tmat slv(unsigned u) {
 }
 
 #define compat(i,j,k) (((i)!=(j)and(j)!=(k)and(k)!=(i))or((i)*(j)*(k)==0))
-#define e(i,j) ((i)|((j)<<2))
+
+int wgt[]= {1,3,3,6,3};
+vc<vc<i64>> mtx= {{1,3,0,0,0},
+                  {0,0,1,2,1},
+                  {1,3,0,0,0},
+                  {0,0,1,1,0},
+                  {0,0,1,0,0}};
 
 int ga(unsigned n) {
-    auto u = n-2;
-    int i, j, k, t, l;
+    int i,j;
     i64 ans = 0;
-    auto res = slv(u);
-    forn(i,CLR)forn(j,CLR)forn(k,CLR)forn(t,CLR)if ((ans+= res[e(i,j)][e(k,t)]) >= M)
-                        if ((ans -= M) >= M)
-                            ans %= M;
+    auto res = slv(n-2);
+    forn(i,S)forn(j,S)
+        if( (ans+= ((wgt[i]*res[i][j])%M) ) >= M )
+            if ((ans -= M) >= M)
+                ans %= M;
     return ans;
 }
 
@@ -101,25 +111,15 @@ int main() {
 #ifndef ONLINE_JUDGE
     freopen("input.txt", "r", stdin);
 #endif
-    int i, j, k, t, ts, n;
+    int i,t,ts,n;
     for (i = 0; i < 11; ++i)
         which[1 << i] = i;
-    vc<vc<i64>> mtx(CLR*CLR,vc<i64>(CLR*CLR,0));
-    forn(i,CLR)forn(j,CLR)forn(k,CLR)
-            if (compat(i, j, k))
-                ++mtx[e(i,j)][e(j,k)];
-    for(i=0;i < CLR*CLR; ++i)         {
-        std::cerr << "Adj of " << i << ": ";
-        for(j= 0; j < CLR*CLR; ++j )
-            if ( mtx[i][j] )
-                std::cerr << j << ", ";
-        std::cerr << std::endl;
-    }
+
     for (C.resize(A), C[0] = mtx, i = 1; i < A; C[i] = mpw(C[i-1],1u<<W), ++i);
     for (t = 0; t < A; ++t)
         D[t].resize(W), D[t][0] = C[t];
     for (t = 0; t < A; ++t)
-        prt[t].resize(B(W)), prt[t][0] = im(CLR*CLR);
+        prt[t].resize(B(W)), prt[t][0] = im(S);
     for (is>>ts;ts--;){
         is >> n;
         if ( n == 0 )
