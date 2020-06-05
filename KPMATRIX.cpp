@@ -4,7 +4,8 @@
  * status:
  */
 #include <bits/stdc++.h>
-using i64= std::int64_t;
+//using i64= std::int64_t;
+using i64= std::int32_t;
 template<typename T>
 using vc= std::vector<T>;
 
@@ -12,12 +13,18 @@ template<typename T>
 class rank_space {
 private:
     vc<T> data;
+    std::unordered_map<T,size_t> mp;
 public:
     explicit rank_space( const vc<T> &input ) {
         data= input, std::sort(data.begin(),data.end());
         data.erase(std::unique(data.begin(),data.end()),data.end());
+        mp.clear();
+        for ( auto i= 0; i < data.size(); ++i )
+            mp[data[i]]= i;
     }
     size_t rank( T key ) const {
+        if ( mp.count(key) )
+            return mp.find(key)->second;
         return std::lower_bound(data.begin(),data.end(),key)-data.begin();
     }
     size_t universe_size() const {
@@ -68,6 +75,7 @@ public:
 
 i64 solve( const vc<i64> &data, i64 A, i64 B ) {
     vc<i64> p{};
+    p.reserve(data.size());
     std::partial_sum(data.begin(),data.end(),std::back_inserter(p));
     auto T= std::make_unique<rt<i64>>(p);
     i64 ans= 0;
@@ -102,7 +110,7 @@ int main() {
 #endif
     for ( int m,n,i,j,k; (is >> m >> n) and (m or n); ) {
         vc<vc<i64>> g= read_input(is,m,n);
-        assert( m >= n );
+        //assert( m >= n );
         i64 A,B,ans= 0;
         is >> A >> B;
         vc<vc<i64>> prefix(m,vc<i64>{});
@@ -110,9 +118,9 @@ int main() {
             prefix[i].reserve(n);
             std::partial_sum(g[i].begin(), g[i].end(), std::back_inserter(prefix[i]));
         }
+        vc<i64> c(m);
         for ( j= 0; j < n; ++j )
             for ( k= j; k < n; ++k ) {
-                vc<i64> c(m);
                 for ( i= 0; i < m; ++i )
                     c[i]= prefix[i][k]-(j==0?0:prefix[i][j-1]);
                 ans+= solve(c,A,B);
