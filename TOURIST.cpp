@@ -83,6 +83,8 @@ weight H( int j, int i, int ni, int k, int nk ) {
     return res;
 }
 
+weight dist[0x80][0x80], optimistic[0x80][0x80];
+
 int main() {
     int i,j,k,ts;
 #ifndef ONLINE_JUDGE
@@ -105,14 +107,17 @@ int main() {
         }
         std::vector<std::vector<bool>> reachable(m,std::vector<bool>(n,false));
         std::queue<std::pair<int,int>> que{};
-        for ( reachable[m-1][n-1]= true, que.push({m-1,n-1}); not que.empty(); que.pop() ) {
+        optimistic[m-1][n-1]= (g[m-1][n-1]=='*'?1:0);
+        for ( dist[m-1][n-1]= 0, reachable[m-1][n-1]= true, que.push({m-1,n-1}); not que.empty(); que.pop() ) {
             std::tie(i,j)= que.front();
             for ( int ni= i; ni >= i-1; --ni )
                 for ( int nj= j; nj >= j-1; --nj )
                     if ( 0 <= ni and ni < m and 0 <= nj and nj < n and abs(ni-i)+abs(nj-j) == 1 )
                         if ( g[ni][nj] != '#' )
-                            if ( not reachable[ni][nj] )
-                                reachable[ni][nj]= true, que.push({ni,nj});
+                            if ( not reachable[ni][nj] ) {
+                                reachable[ni][nj] = true, dist[ni][nj] = dist[i][j] + 1, que.push({ni, nj});
+                                optimistic[ni][nj]= optimistic[i][j]+(g[ni][nj]=='*'?1:0);
+                            }
         }
         memset(z,0xffull,sizeof z);
         std::queue<state> q{};
@@ -128,43 +133,20 @@ int main() {
                 continue ;
             }
             assert( j < n-1 );
-
-            /*
-            for ( int ni= i; ni < m and (ni+j+1+k+j+1 < 2*(m+n)); ++ni ) {
+            for ( int ni= i; ni < m; ++ni ) {
                 if (not reachable[ni][j]) break;
                 if (not reachable[ni][j + 1]) continue;
-                for (int nk = std::max(k, ni); nk < m and (ni+j+1+nk+j+1 < 2*(m+n)); ++nk) {
+                for (int nk = std::max(k, ni); nk < m; ++nk) {
                     if ( not reachable[nk][j] )
                         break ;
                     if (reachable[nk][j + 1]) {
                         weight collected = f(j, i, ni, k, nk);
                         if (collected < +oo)
                             if (z[v = enc(j + 1, ni, nk)] == +oo or z[v] < z[u] + collected)
+                                if ( ans < optimistic[ni][j+1]+optimistic[nk][j+1]+z[u] )
                                 z[v] = z[u] + collected, q.push(v);
                     }
                 }
-            }
-            */
-
-            // stay in the same column
-            for ( int ni= i; ni <= i+1 and ni < m; ++ni ) {
-                if (not reachable[ni][j]) break;
-                for (int nk = std::max(k,ni); nk <= k+1 and nk < m; ++nk) {
-                    if ( not reachable[nk][j] )
-                        break ;
-                    if ( ni == i and k == nk  ) continue ;
-                    weight collected = G(j, i, ni, k, nk);
-                    if (collected < +oo)
-                        if (z[v = enc(j,ni,nk)] == +oo or z[v] < z[u] + collected)
-                            z[v] = z[u] + collected, q.push(v);
-                }
-            }
-            // move to the next column
-            if ( reachable[i][j+1] and reachable[k][j+1] ) {
-                weight collected = F(j, i, k);
-                if (collected < +oo)
-                    if (z[v = enc(j + 1, i, k)] == +oo or z[v] < z[u] + collected)
-                        z[v] = z[u] + collected, q.push(v);
             }
         }
         os << ans << '\n';
