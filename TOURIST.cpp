@@ -47,6 +47,42 @@ weight f( int j, int i, int ni, int k, int nk ) {
     return res;
 }
 
+weight F( int j, int i, int k ) {
+    weight a= g[i][j+1]=='*'?1:0, b= g[k][j+1]=='*'?1:0;
+    int res= a+b;
+    if ( i == k and g[i][j+1] == '*' ) --res;
+    assert( res >= 0 );
+    return res;
+}
+
+weight G( int j, int i, int ni, int k, int nk ) {
+    assert( i <= k and ni <= nk );
+    if ( col[j][ni]-col[j][i] or col[j][nk]-col[j][k] )
+        return +oo;
+    if ( g[ni][j+1] == '#' or g[nk][j+1] == '#' )
+        return +oo;
+    assert( prizes[j][ni] >= prizes[j][i] );
+    assert( prizes[j][nk] >= prizes[j][k] );
+    weight a= prizes[j][ni]-prizes[j][i],
+           b= prizes[j][nk]-prizes[j][k];
+    int res= a+b;
+    assert( res >= 0 );
+    if ( ni < k )
+        return res;
+    assert( ni >= k );
+    res-= (prizes[j][ni]-(k==0?0:prizes[j][k-1]));
+    if ( i == k and g[i][j] == '*' )
+        ++res;
+    assert( res >= 0 );
+    return res;
+}
+
+weight H( int j, int i, int ni, int k, int nk ) {
+    weight a= g[ni][j]=='*'?1:0, b= g[nk][j]=='*'?1:0;
+    int res= a+b;
+    return res;
+}
+
 int main() {
     int i,j,k,ts;
 #ifndef ONLINE_JUDGE
@@ -91,9 +127,9 @@ int main() {
                     ans= std::max(ans,z[u]);
                 continue ;
             }
-            if ( i+j + k+j + 2 >= 2*(m+n) )
-                continue ;
             assert( j < n-1 );
+
+            /*
             for ( int ni= i; ni < m and (ni+j+1+k+j+1 < 2*(m+n)); ++ni ) {
                 if (not reachable[ni][j]) break;
                 if (not reachable[ni][j + 1]) continue;
@@ -107,6 +143,28 @@ int main() {
                                 z[v] = z[u] + collected, q.push(v);
                     }
                 }
+            }
+            */
+
+            // stay in the same column
+            for ( int ni= i; ni <= i+1 and ni < m; ++ni ) {
+                if (not reachable[ni][j]) break;
+                for (int nk = std::max(k,ni); nk <= k+1 and nk < m; ++nk) {
+                    if ( not reachable[nk][j] )
+                        break ;
+                    if ( ni == i and k == nk  ) continue ;
+                    weight collected = G(j, i, ni, k, nk);
+                    if (collected < +oo)
+                        if (z[v = enc(j,ni,nk)] == +oo or z[v] < z[u] + collected)
+                            z[v] = z[u] + collected, q.push(v);
+                }
+            }
+            // move to the next column
+            if ( reachable[i][j+1] and reachable[k][j+1] ) {
+                weight collected = F(j, i, k);
+                if (collected < +oo)
+                    if (z[v = enc(j + 1, i, k)] == +oo or z[v] < z[u] + collected)
+                        z[v] = z[u] + collected, q.push(v);
             }
         }
         os << ans << '\n';
