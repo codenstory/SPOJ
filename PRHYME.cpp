@@ -8,7 +8,28 @@
 #include <bits/stdc++.h>
 #define oo (1<<29)
 
+std::string brute_force( const std::vector<std::string> &corpus, const std::string &s ) {
+    auto t= s;
+    auto common_suffix= [&t](const std::string &x ) {
+        int k= 0,i,j;
+        for ( i= x.size()-1, j= t.size()-1; i >= 0 and j >= 0; --i, --j, ++k )
+            if ( x[i] != t[j] )
+                return k;
+        return k;
+    };
+    return *std::min_element(corpus.begin(),corpus.end(),[&t,&common_suffix]( const auto &x, const auto &y ) {
+        assert( x != y );
+        if ( x == t ) return false ;
+        if ( y == t ) return true ;
+        auto ax= common_suffix(x), ay= common_suffix(y);
+        if ( ax == ay )
+            return x < y;
+        return ax > ay;
+    });
+}
+
 class Solution {
+
     struct cell {
         std::map<char, std::shared_ptr<cell>> son;
         std::shared_ptr<cell> p;
@@ -27,7 +48,6 @@ class Solution {
 
     int traverse(std::shared_ptr<cell> &x) {
         if (x) {
-            x->smallest = (x->flag ? x->idx : +oo);
             for (auto &[k, v]: x->son) {
                 x->which[traverse(v)] = k;
                 assert( v->smallest < +oo );
@@ -51,7 +71,7 @@ class Solution {
 
 public:
 
-    void push(const std::string &s, int idx) {
+    void push(const std::string &s, const int idx) {
         std::shared_ptr<cell> *hold = &root, x = root;
         for (auto ch: s) {
             if (not x->son.count(ch))
@@ -60,7 +80,9 @@ public:
         }
         assert(not x->flag); //no two words are equal
         x->flag = true, x->s = s, std::reverse(x->s.begin(), x->s.end());
-        x->idx = idx;
+        x->smallest= x->idx = idx;
+        if ( x->s == "actinal" )
+            std::cerr << "Here: " << x->idx << std::endl;
     }
 
     std::string find(const std::string &s) {
@@ -76,6 +98,7 @@ public:
             assert(not x->son.empty());
             return smallest_in_subtree(x);
         } else {
+            auto o= x;
             if (not x->son.empty()) {
                 assert( not x->which.empty() );
                 assert( x->which.size() == x->son.size() );
@@ -84,10 +107,10 @@ public:
             assert( x->flag and x->son.empty() );
             for (y = x, x = x->p; x and (not x->flag and x->son.size() == 1); y = x, x = x->p);
             assert(x);
-            if (x->flag)
+            if ( x->flag and x->smallest == x->idx )
                 return x->s;
             for (auto it = x->which.begin(); it != x->which.end(); ++it)
-                if (x->son[it->second] != y)
+                if (x->son[it->second] != y and it->first != o->idx)
                     return smallest_in_subtree(x->son[it->second]);
             assert(false);
         }
@@ -116,12 +139,21 @@ void solve( std::istream &input, std::ostream &output ) {
     std::sort(vec.begin(),vec.end());
     for ( int i= 0; i < vec.size(); ++i ) {
         t= vec[i];
+        if ( i ) assert( vec[i-1] < vec[i] );
         std::reverse(t.begin(),t.end());
         sol.push(t,i);
     }
     for ( sol.finalize(); std::getline(input,s); ) {
+        auto orig= s,bf= s;
         s= prep(s), std::reverse(s.begin(),s.end());
         auto res= sol.find(s);
+#if 1
+        if ( res != (bf= brute_force(vec,orig)) ) {
+            std::cerr << "Request: " << orig << std::endl;
+            std::cerr << "These words: " << res << " vs " << bf << std::endl;
+        }
+        assert( res == bf );
+#endif
         output << res << '\n';
         std::reverse(res.begin(),res.end());
         assert( not res.empty() );
@@ -192,12 +224,13 @@ aa
     }
 }
 
+
 int main() {
     std::ios_base::sync_with_stdio(false), std::cin.tie(nullptr);
 #ifndef ONLINE_JUDGE
     freopen("input.txt", "r", stdin);
 #endif
-    test_all();
+    //test_all();
     std::istream &is = std::cin;
     std::ostream &os = std::cout;
     solve(is,os);
