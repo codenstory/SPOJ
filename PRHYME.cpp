@@ -1,9 +1,7 @@
-#include <utility>
-
 /**
  * PRHYME
- * TOPIC: Trie, greedy
- * status:
+ * TOPIC: Trie, greedy, tree traversal, dp on tree
+ * status: Accepted
  */
 #include <bits/stdc++.h>
 #define oo (1<<29)
@@ -111,14 +109,19 @@ public:
                 return smallest_in_subtree(x->son[x->which.begin()->second]);
             }
             assert( x->flag and x->son.empty() );
-            for (y = x, x = x->p; x and (not x->flag and x->card == 1); y = x, x = x->p);
+            for (y = x, x = x->p; x and (not x->flag and x->son.size() == 1); y = x, x = x->p);
             assert(x);
-            if ( x->flag and x->idx != o )
-                return x->s;
-            auto res= smallest_in_subtree(x,o);
-            if ( res.empty() )
-                return x->s;
-            else return res;
+            std::shared_ptr<cell> candidate= nullptr;
+            for ( auto it= x->which.begin(); it != x->which.end(); ++it )
+                if ( x->son[it->second] != y ) {
+                    auto v= x->son[it->second];
+                    if ( not candidate or v->smallest < candidate->smallest )
+                        candidate= v;
+                }
+            if ( x->flag )
+                if ( not candidate or x->idx < candidate->smallest )
+                    candidate= x;
+            return candidate == x ? x->s : smallest_in_subtree(candidate,o);
         }
     }
 
@@ -152,7 +155,7 @@ void solve( std::istream &input, std::ostream &output ) {
         auto orig= s,bf= s;
         s= prep(s), std::reverse(s.begin(),s.end());
         auto res= sol.find(s);
-#if 1
+#if 0
         if ( res != (bf= brute_force(vec,orig)) ) {
             std::cerr << "Request: " << orig << std::endl;
             std::cerr << "These words: " << res << " vs " << bf << std::endl;
@@ -241,4 +244,3 @@ int main() {
     solve(is,os);
     return 0;
 }
-    
