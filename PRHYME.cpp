@@ -34,11 +34,11 @@ class Solution {
         std::map<char, std::shared_ptr<cell>> son;
         std::shared_ptr<cell> p;
         bool flag;
-        int idx, smallest;
+        int idx, smallest, card;
         std::map<int, char> which;
 
         explicit cell(std::shared_ptr<cell> prnt= nullptr) {
-            smallest = +oo, idx= -1, flag = false, s= std::string{}, son.clear(), p = std::move(prnt), which.clear();
+            smallest = +oo, idx= -1, card= 0, flag = false, s= std::string{}, son.clear(), p = std::move(prnt), which.clear();
         }
 
         std::string s{};
@@ -48,10 +48,12 @@ class Solution {
 
     int traverse(std::shared_ptr<cell> &x) {
         if (x) {
+            x->card= (x->flag ? 1:0);
             for (auto &[k, v]: x->son) {
                 x->which[traverse(v)] = k;
                 assert( v->smallest < +oo );
                 x->smallest = std::min(x->smallest, v->smallest);
+                x->card+= v->card;
             }
             assert( x->smallest < +oo );
             return x->smallest;
@@ -59,14 +61,19 @@ class Solution {
         return +oo;
     }
 
-    std::string smallest_in_subtree(std::shared_ptr<cell> &x) {
-        if (x->smallest == x->idx) {
+    std::string smallest_in_subtree(std::shared_ptr<cell> &x, int avoid= -1) {
+        if (x->smallest == x->idx and x->idx != avoid) {
             assert( x->flag );
             return x->s;
         }
         assert( not x->which.empty() );
         assert( x->son.size() == x->which.size() );
-        return smallest_in_subtree(x->son[x->which.begin()->second]);
+        for ( auto it= x->which.begin(); it != x->which.end(); ++it ) {
+            auto z= x->son[it->second];
+            if ( it->first != avoid or z->card > 1 )
+                return smallest_in_subtree(z,avoid);
+        }
+        return std::string{};
     }
 
 public:
@@ -98,23 +105,18 @@ public:
             assert(not x->son.empty());
             return smallest_in_subtree(x);
         } else {
-            auto o= x;
+            auto o= x->idx;
+            assert( o != -1 );
             if (not x->son.empty()) {
                 assert( not x->which.empty() );
                 assert( x->which.size() == x->son.size() );
                 return smallest_in_subtree(x->son[x->which.begin()->second]);
             }
             assert( x->flag and x->son.empty() );
-            for (y = x, x = x->p; x and (not x->flag and x->son.size() == 1); y = x, x = x->p);
+            for (y = x, x = x->p; x and (not x->flag and x->card == 1); y = x, x = x->p);
             assert(x);
-            if ( x->flag and x->smallest == x->idx )
-                return x->s;
-            for (auto it = x->which.begin(); it != x->which.end(); ++it)
-                if (x->son[it->second] != y and it->first != o->idx)
-                    return smallest_in_subtree(x->son[it->second]);
-            assert(false);
+            return smallest_in_subtree(x,o);
         }
-        return std::string{};
     }
 
     void finalize() {
