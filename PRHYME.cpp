@@ -88,8 +88,6 @@ public:
         assert(not x->flag); //no two words are equal
         x->flag = true, x->s = s, std::reverse(x->s.begin(), x->s.end());
         x->smallest= x->idx = idx;
-        if ( x->s == "actinal" )
-            std::cerr << "Here: " << x->idx << std::endl;
     }
 
     std::string find(const std::string &s) {
@@ -115,7 +113,12 @@ public:
             assert( x->flag and x->son.empty() );
             for (y = x, x = x->p; x and (not x->flag and x->card == 1); y = x, x = x->p);
             assert(x);
-            return smallest_in_subtree(x,o);
+            if ( x->flag and x->idx != o )
+                return x->s;
+            auto res= smallest_in_subtree(x,o);
+            if ( res.empty() )
+                return x->s;
+            else return res;
         }
     }
 
