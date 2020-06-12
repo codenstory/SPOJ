@@ -1,3 +1,5 @@
+#include <utility>
+
 /**
  * PRHYME
  * TOPIC: Trie, greedy
@@ -5,9 +7,6 @@
  */
 #include <bits/stdc++.h>
 #define oo (1<<29)
-
-std::istream &is = std::cin;
-std::ostream &os = std::cout;
 
 class Solution {
     struct cell {
@@ -17,9 +16,11 @@ class Solution {
         int idx, smallest;
         std::map<int, char> which;
 
-        cell() { smallest = +oo, flag = false, son.clear(), p = nullptr, which.clear(); }
+        explicit cell(std::shared_ptr<cell> prnt= nullptr) {
+            smallest = +oo, idx= -1, flag = false, s= std::string{}, son.clear(), p = std::move(prnt), which.clear();
+        }
 
-        std::string s;
+        std::string s{};
     };
 
     std::shared_ptr<Solution::cell> root= std::make_shared<cell>();
@@ -29,17 +30,22 @@ class Solution {
             x->smallest = (x->flag ? x->idx : +oo);
             for (auto &[k, v]: x->son) {
                 x->which[traverse(v)] = k;
+                assert( v->smallest < +oo );
                 x->smallest = std::min(x->smallest, v->smallest);
             }
+            assert( x->smallest < +oo );
             return x->smallest;
         }
         return +oo;
     }
 
     std::string smallest_in_subtree(std::shared_ptr<cell> &x) {
-        if (x->flag and x->smallest == x->idx) {
+        if (x->smallest == x->idx) {
+            assert( x->flag );
             return x->s;
         }
+        assert( not x->which.empty() );
+        assert( x->son.size() == x->which.size() );
         return smallest_in_subtree(x->son[x->which.begin()->second]);
     }
 
@@ -49,8 +55,8 @@ public:
         std::shared_ptr<cell> *hold = &root, x = root;
         for (auto ch: s) {
             if (not x->son.count(ch))
-                (*hold)->son[ch] = x->son[ch] = std::make_shared<cell>();
-            hold = &(x->son[ch]), (*hold)->p = x, x = x->son[ch];
+                (*hold)->son[ch] = std::make_shared<cell>(*hold);
+            hold = &(x->son[ch]), x = x->son[ch];
         }
         assert(not x->flag); //no two words are equal
         x->flag = true, x->s = s, std::reverse(x->s.begin(), x->s.end());
@@ -71,8 +77,11 @@ public:
             return smallest_in_subtree(x);
         } else {
             if (not x->son.empty()) {
+                assert( not x->which.empty() );
+                assert( x->which.size() == x->son.size() );
                 return smallest_in_subtree(x->son[x->which.begin()->second]);
             }
+            assert( x->flag and x->son.empty() );
             for (y = x, x = x->p; x and (not x->flag and x->son.size() == 1); y = x, x = x->p);
             assert(x);
             if (x->flag)
@@ -84,31 +93,40 @@ public:
         }
         return std::string{};
     }
+
     void finalize() {
         traverse(root);
     }
+
 };
 
 std::string prep(const std::string &s) {
     std::string str{};
     for (auto ch: s)
-        if (std::islower(ch))
-            str.push_back(ch);
+        if (std::isalpha(ch))
+            str.push_back(std::tolower(ch));
     return str;
 }
 
 void solve( std::istream &input, std::ostream &output ) {
     Solution sol;
-    std::string s;
+    std::string s,t;
     std::vector<std::string> vec{};
-    for ( ;std::getline(input,s) and not s.empty(); vec.emplace_back(prep(s)) ) ;
+    for (;std::getline(input,s) and not (t= prep(s)).empty(); vec.emplace_back(t) ) ;
     std::sort(vec.begin(),vec.end());
     for ( int i= 0; i < vec.size(); ++i ) {
-        auto t= vec[i];
+        t= vec[i];
         std::reverse(t.begin(),t.end());
         sol.push(t,i);
     }
-    for ( sol.finalize(); std::getline(input,s) and not s.empty(); std::reverse(s.begin(),s.end()),s= prep(s), output << sol.find(s) << '\n' ) ;
+    for ( sol.finalize(); std::getline(input,s); ) {
+        s= prep(s), std::reverse(s.begin(),s.end());
+        auto res= sol.find(s);
+        output << res << '\n';
+        std::reverse(res.begin(),res.end());
+        assert( not res.empty() );
+        assert( res != s );
+    }
 }
 
 void test_all() {
@@ -175,10 +193,13 @@ aa
 }
 
 int main() {
+    std::ios_base::sync_with_stdio(false), std::cin.tie(nullptr);
 #ifndef ONLINE_JUDGE
     freopen("input.txt", "r", stdin);
 #endif
     test_all();
+    std::istream &is = std::cin;
+    std::ostream &os = std::cout;
     solve(is,os);
     return 0;
 }
