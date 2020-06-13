@@ -10,6 +10,7 @@ class rbtree {
 private:
     enum { L= 0, R= 1 };
     enum { Red= L, Black= R };
+
     struct cell {
         std::shared_ptr<cell> son[2],p;
         vtype val;
@@ -20,12 +21,15 @@ private:
             freq= card= 0;
         }
     };
+
     std::shared_ptr<cell> root, nil;
+
     std::shared_ptr<cell> make_cell() {
         auto x= std::make_shared<cell>();
         x->son[L]= x->son[R]= nil, x->p= nil;
         return x;
     }
+
     std::shared_ptr<cell> make_nil() {
         auto x= std::make_shared<cell>();
         x->c= Black, x->son[L]= x->son[R]= x->p= x;
@@ -66,7 +70,7 @@ private:
             }
             assert( color(y) == Black );
             if ( color(y->son[L]) == Black and color(y->son[R]) == Black ) {
-                flip(y), x= x->p;
+                flip(y), x= w;
                 continue ;
             }
             if ( color(y->son[i]) == Red ) {
@@ -74,7 +78,7 @@ private:
                 continue ;
             }
             assert( color(y->son[i^1u]) == Red );
-            flip(y->son[i^1u]), y->c= x->p->c, x->p->c= Black, rotate(x->p,i);
+            flip(y->son[i^1u]), y->c= w->c, w->c= Black, rotate(w,i);
             x= root;
         }
         x->c= Black;
@@ -151,7 +155,7 @@ public:
         auto i= which_son(z);
         if ( (z->p->son[i]= x) != nil )
             x->p= z->p;
-        update_upwards(z->p);
+        update_upwards(x->p);
         if ( color(z) == Black )
             fixup(x);
     }
@@ -171,6 +175,7 @@ class range_tree {
     std::vector<std::shared_ptr<rbtree>> tr;
     int n,m;
     std::vector<vtype> data;
+
     void build( int v, int i, int j ) {
         if ( i < j ) {
             auto k= (i+j)>>1u;
@@ -181,6 +186,7 @@ class range_tree {
             for ( auto key= data.begin()+i; key <= data.begin()+j; tr[v]->push(*key++) ) ;
         }
     }
+
     int query_( int v, int i, int j, int qi, int qj, vtype key ) {
         if ( qi > j or qj < i )
             return 0;
@@ -196,6 +202,7 @@ class range_tree {
         auto k= (i+j)>>1;
         return query_(L(v),i,k,qi,qj,key)+query_(R(v),k+1,j,qi,qj,key);
     }
+
     void update_( int v, int i, int j, int pos, vtype newval, vtype oldval ) {
         if ( pos < i or pos > j )
             return ;
@@ -207,17 +214,22 @@ class range_tree {
         update_(L(v),i,k,pos,newval,oldval), update_(R(v),k+1,j,pos,newval,oldval);
         tr[v]->erase(oldval), tr[v]->push(newval);
     }
+
 public:
+
     range_tree( const std::vector<vtype> &data ): data(data) {
         n= data.size(), m= 4*n+7;
         tr.resize(m), build(1,0,n-1);
     }
+
     int query( int qi, int qj, vtype key ) {
         return query_(1,0,n-1,qi,qj,key);
     }
+
     void modify( int pos, vtype newval ) {
         update_(1,0,n-1,pos,newval,data[pos]);
     }
+
 };
 
 int main() {
