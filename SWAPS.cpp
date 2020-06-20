@@ -13,49 +13,39 @@ class rbtree {
     enum { L, R };
     enum { Red, Black };
     struct cell {
-        unsigned char c;
-        vtype val;
-        holder son[2], p;
-        size_t card,
-               freq;
-        holder operator() (int t) const {
-            return son[t];
-        }
-        holder& operator() (int t) {
-            return son[t];
-        }
+        unsigned char c= Red;
+        vtype val{};
+        holder son[2]= {nullptr,nullptr}, p= nullptr;
+        size_t card{},
+               freq{};
     };
 
 #define color(x) ((x)->c)
 #define which_son(x) ((x)->p->son[L] == (x)?L:R)
-#define flip(x) ((x)->c^=1)
+#define flip(x) ((x)->c^=1u)
 
     holder root, nil;
-    holder operator ++ ( holder x ) {
-        return x->p;
-    }
     holder make_nil() {
         auto x= std::make_shared<cell>();
-        x->c= Black, x(L)= x(R)= x->p= x;
-        x->card= x->freq= 0;
+        x->c= Black, x->son[L]= x->son[R]= x->p= x, x->card= x->freq= 0;
         return x;
     }
     holder make_cell( vtype val ) {
         auto x= std::make_shared<cell>();
-        x->c= Red, x(L)= x(R)= x->p= nil, x->val= val;
+        x->c= Red, x->son[L]= x->son[R]= x->p= nil, x->val= val;
         return x;
     }
     void propagate( holder &x ) {
-        for ( ;x != nil; x->card= x->freq+x(L)->card+x(R)->card, x++ ) ;
+        for (;x != nil; x->card= x->freq+x->son[L]->card+x->son[R]->card, x= x->p ) ;
     }
     void rotate( holder &x, t_dir t ) {
         assert( t == L or t == R );
         assert( x != nil );
-        auto y= x(t^1);
+        auto y= x->son[t^1u];
         assert( y != nil );
-        if ( (x(t^1)= y(t)) != nil )
-            y(t)->p= x;
-        y(t)= x, x->p= y;
+        if ( (x->son[t^1u]= y->son[t]) != nil )
+            y->son[t]->p= x;
+        y->son[t]= x, x->p= y;
         propagate(x);
     }
 
@@ -74,16 +64,16 @@ class rbtree {
                 continue ;
             }
             assert( color(y) == Black );
-            if ( color(y(L)) == Red and color(y(R)) == Red ) {
-                flip(y(L)), flip(y(R)), flip(y), x= x->p;
+            if ( color(y->son[L]) == Black and color(y->son[R]) == Black ) {
+                flip(y), x= x->p;
                 continue ;
             }
-            if ( color(y(i)) == Red ) {
-                flip(y(i)), flip(y), rotate(y,i^1);
+            if ( color(y->son[i]) == Red ) {
+                flip(y->son[i]), flip(y), rotate(y,i^1u);
                 continue ;
             }
-            assert( color(y(i^1)) == Red );
-            y(i^1)->c= Black, y->c= x->p->c, x->p->c= Black, rotate(x->p,i), x= root;
+            assert( color(y->son[i^1u]) == Red );
+            y->son[i^1u]->c= Black, y->c= x->p->c, x->p->c= Black, rotate(x->p,i), x= root;
         }
         x->c= Black;
     }
@@ -94,13 +84,12 @@ public:
         size_t rnk= 0;
         for ( auto x= root; x != nil; ) {
             if ( x->val > key )
-                x= x(L);
-            else if ( x->val < key ) {
-                rnk+= x->freq, rnk+= x(L)->freq;
-                x= x(R);
-            } else {
+                x= x->son[L];
+            else if ( x->val < key )
+                rnk+= x->freq, rnk+= x->son[L]->card, x= x->son[R];
+            else {
                 assert(x->val == key);
-                rnk += x->freq, rnk += x(L)->freq;
+                rnk += x->freq, rnk += x->son[L]->card;
                 break;
             }
         }
@@ -118,39 +107,38 @@ public:
             return ;
         }
         *hold= x= make_cell(val), x->p= p, x->freq= 1;
-        propagate(x);
-        while ( x != root and color(x->p) == Red ) {
+        for ( propagate(x); x != root and color(x->p) == Red; ) {
             auto g= x->p->p;
             auto i= which_son(x->p);
-            auto y= g->son[i^1];
+            auto y= g->son[i^1u];
             if ( color(y) == Red ) {
                 flip(g), flip(x->p), flip(y), x= g;
                 continue ;
             }
-            if ( which_son(x) == (i^1) )
+            if ( which_son(x) == (i^1u) )
                 x= x->p, rotate(x,i);
-            flip(x->p), flip(g), rotate(g,i^1), x= root;
+            flip(x->p), flip(g), rotate(g,i^1u), x= root;
         }
         root->c= Black;
     }
 
     bool erase( vtype val ) {
         auto z= find(val);
-        if ( val == nil )
+        if ( z == nil )
             return false ;
         if ( --z->freq ) {
             propagate(z);
             return true ;
         }
         assert( z->freq == 0 );
-        if ( z(L) != nil and z(R) != nil ) {
-            auto y= z(R);
-            for ( ;z(L) != nil; z= z(L) ) ;
+        if ( z->son[L] != nil and z->son[R] != nil ) {
+            auto y= z->son[R];
+            for ( ;z->son[L] != nil; z= z->son[L] ) ;
             std::swap(z->val,y->val), std::swap(z->freq,y->freq);
             propagate(y), z= y;
         }
-        assert( z(L) == nil or z(R) == nil );
-        auto x= z(L)==nil?z(R):z(L);
+        assert( z->son[L] == nil or z->son[R] == nil );
+        auto x= z->son[L]==nil?z->son[R]:z->son[L];
         if ( z == root ) {
             root= x;
         } else {
@@ -162,12 +150,20 @@ public:
             fixup(x);
         return true ;
     }
+
+#undef color
+#undef which_son
+#undef flip
+
+    explicit rbtree() {
+        root= nil= make_nil();
+    }
 };
 
 template<typename vtype>
 class rangetree {
 #define L(v) ((v)<<1u)
-#define R(v) (1|L(v))
+#define R(v) (1u|L(v))
 #define LIMIT (0x400)
     using rbtree_holder= std::shared_ptr<rbtree<vtype>>;
     std::vector<rbtree_holder> tr;
@@ -197,25 +193,45 @@ class rangetree {
         assert( ok );
         tr[v]->push(newval);
     }
-    inline size_t bf( int i, int j, vtype key ) {
+    inline size_t bf1( int i, int j, vtype key ) {
         auto k= key;
         return static_cast<size_t>(std::count_if(data.begin()+i,data.begin()+j+1,[k](auto x) {
             return x > k;
         }));
     }
-    size_t query( int v, int i, int j, int qi, int qj, vtype key ) {
+    inline size_t bf2( int i, int j, vtype key ) {
+        auto k= key;
+        return static_cast<size_t>(std::count_if(data.begin()+i,data.begin()+j+1,[k](auto x) {
+            return x < k;
+        }));
+    }
+    size_t query1( int v, int i, int j, int qi, int qj, vtype key ) {
         if ( qi > j or qj < i )
             return 0;
         if ( qi <= i and j <= qj ) {
             if ( j-i+1 < LIMIT ) {
-                return bf(i,j,key);
+                return bf1(i,j,key);
             }
             auto res= tr[v]->rank(key);
             assert( j-i+1 >= res );
             return (j-i+1)-res;
         }
         auto k= (i+j)>>1u;
-        return query(L(v),i,k,qi,qj,key)+query(R(v),k+1,j,qi,qj,key);
+        return query1(L(v),i,k,qi,qj,key)+query1(R(v),k+1,j,qi,qj,key);
+    }
+    size_t query2( int v, int i, int j, int qi, int qj, vtype key ) {
+        if ( qi > j or qj < i )
+            return 0;
+        if ( qi <= i and j <= qj ) {
+            if ( j-i+1 < LIMIT ) {
+                return bf2(i,j,key);
+            }
+            auto res= tr[v]->rank(key);
+            assert( j-i+1 >= res );
+            return res;
+        }
+        auto k= (i+j)>>1u;
+        return query2(L(v),i,k,qi,qj,key)+query2(R(v),k+1,j,qi,qj,key);
     }
 public:
     rangetree( const std::vector<vtype> &input ) {
@@ -226,8 +242,11 @@ public:
         auto old_val= data[pos];
         update(1,0,n-1,pos,old_val,newval);
     }
-    size_t counting( int qi, int qj, vtype key ) {
-        return query(1,0,n-1,qi,qj,key);
+    size_t countingAbove( int qi, int qj, vtype key ) {
+        return query1(1,0,n-1,qi,qj,key);
+    }
+    size_t countingBelow( int qi, int qj, vtype key ) {
+        return query2(1,0,n-1,qi,qj,key);
     }
 #undef L
 #undef R
@@ -251,15 +270,15 @@ int main() {
     std::shared_ptr<rt> T= std::make_shared<rt>(data);
     ans= 0;
     for ( int i= 1; i < n; ++i )
-        ans+= T->counting(0,i-1,data[i]);
+        ans+= T->countingAbove(0,i-1,data[i]);
     for ( is >> qr; qr--; ) {
         int x,y;
         is >> x >> y;
-        auto old= T->counting(0,x-1,data[x-1]);
+        auto old= T->countingAbove(0,x-1,data[x-1])+T->countingBelow(x+1,n-1,data[x-1]);
         T->change_val(x-1,y);
         data[x-1]= y;
-        auto neu= T->counting(0,x-1,data[x-1]);
-        ans-= old, ans+= neu;
+        auto neu= T->countingAbove(0,x-1,data[x-1])+T->countingBelow(x+1,n-1,data[x-1]);
+        ans+= neu, ans-= old;
         os << ans << '\n';
     }
     return 0;
