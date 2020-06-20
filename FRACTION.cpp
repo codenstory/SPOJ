@@ -138,6 +138,8 @@ int main() {
         }
     }
 
+    std::cerr << T->card << std::endl;
+
     for ( auto &resp: responses )
         for ( auto &z: resp )
             os << z.first << '/' << z.second << '\n';
