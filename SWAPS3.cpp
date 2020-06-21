@@ -49,6 +49,7 @@ class rbtree {
 
     holder root, nil;
     size_t sz{};
+
     holder make_nil() {
         auto x= std::make_shared<cell>();
         x->c= Black, x->son[L]= x->son[R]= x->p= x, x->card= x->freq= 0;
@@ -391,6 +392,47 @@ public:
 
 using rt= rangetree<int>;
 
+#define LSB(v) ((v) & ((~(v))+1u))
+template<typename vtype>
+class BIT {
+#define MAXW (1<<16)
+    std::vector<size_t> tr;
+    int n,K;
+    size_t prefix( unsigned int i ) {
+        if ( i == 0 )
+            return 0;
+        size_t ans= 0;
+        for ( ;i; ans+= tr[i], i&= ~LSB(i) ) ;
+        return ans;
+    }
+    size_t segment( unsigned int i, unsigned int j ) {
+        if ( j < i )
+            return 0;
+        size_t ans= 0;
+        if ( i == 0 )
+            return prefix(j);
+        return prefix(j)-prefix(i-1);
+    }
+public:
+    BIT( const std::vector<vtype> &data, int i, int j ) {
+        tr.resize(MAXW,0);
+        for ( auto t= i; t < j; ++t )
+            increment(data[t]);
+    }
+    void increment( unsigned int i ) {
+        for ( ;i < MAXW; ++tr[i], i+= LSB(i) ) ;
+    }
+    void decrement( unsigned int i ) {
+        for ( ;i < MAXW; --tr[i], i+= LSB(i) ) ;
+    }
+    size_t countBelow( unsigned int i ) {
+        return segment(0,i-1);
+    }
+    size_t countAbove( unsigned int i ) {
+        return segment(i+1,MAXW-1);
+    }
+};
+
 template<typename vtype>
 void mergesort( std::vector<vtype> &c, int i, int j, size_t &res ) {
     if ( i == j )
@@ -422,6 +464,74 @@ size_t find_inversions( const std::vector<vtype> &c ) {
     return res;
 }
 
+size_t BS;
+std::vector<std::shared_ptr<BIT<int>>> trees;
+std::vector<int> data;
+int n;
+
+template<typename vtype>
+size_t countingAbove( int qi, int qj, vtype key ) {
+    if ( qi > qj )
+        return 0;
+    qi= std::min(n-1,std::max(0,qi));
+    qj= std::min(n-1,qj);
+    int bi= qi/BS, bj= qj/BS;
+    if ( bi == bj ) {
+        return std::count_if(data.begin()+qi,data.begin()+qj+1,[key](auto x) {
+            return x > key;
+        });
+    }
+    assert( bi < bj );
+    size_t ans= 0;
+    for ( int t= bi+1; t <= bj-1; ++t ) {
+        ans+= trees[t]->countAbove(key);
+    }
+    for ( int t= qi; t < (bi+1)*BS; ++t )
+        if ( data[t] > key )
+            ++ans;
+    for ( int t= bj*BS; t <= qj; ++t )
+        if ( data[t] > key )
+            ++ans;
+    return ans;
+}
+
+template<typename vtype>
+size_t countingBelow( int qi, int qj, vtype key ) {
+    if ( qi > qj )
+        return 0;
+    qi= std::min(n-1,std::max(0,qi));
+    qj= std::min(n-1,qj);
+    int bi= qi/BS, bj= qj/BS;
+    if ( bi == bj ) {
+        return std::count_if(data.begin()+qi,data.begin()+qj+1,[key](auto x) {
+            return x < key;
+        });
+    }
+    assert( bi < bj );
+    size_t ans= 0;
+    for ( int t= bi+1; t <= bj-1; ++t ) {
+        ans+= trees[t]->countBelow(key);
+    }
+    assert( qi < (bi+1)*BS );
+    for ( int t= qi; t < (bi+1)*BS and t <= qj; ++t )
+        if ( data[t] < key )
+            ++ans;
+    assert( qi < bj*BS );
+    for ( int t= bj*BS; t <= qj; ++t )
+        if ( data[t] < key )
+            ++ans;
+    return ans;
+}
+
+template<typename vtype>
+void change_value( int pos, vtype new_val ) {
+    int bi= pos/BS;
+    auto old_val= data[pos];
+    trees[bi]->decrement(old_val);
+    trees[bi]->increment(new_val);
+    data[pos]= new_val;
+}
+
 int main() {
     std::ios_base::sync_with_stdio(false), std::cin.tie(nullptr);
 #ifndef ONLINE_JUDGE
@@ -429,13 +539,20 @@ int main() {
 #endif
     std::istream &is = std::cin;
     std::ostream &os = std::cout;
-    int n,qr;
+    int qr;
     size_t ans= 0;
     is >> n;
-    std::vector<int> data(n);
+    for ( BS= 1u; BS <= n/BS; ++BS ) ;
+    data.resize(n);
     for ( auto &v: data )
         is >> v;
-    std::shared_ptr<rt> T= std::make_shared<rt>(data);
+    trees.resize(n/BS+0x10,nullptr);
+    for ( int i= 0; i < n; ++i ) {
+        int j= i/BS;
+        if ( not trees[j] )
+            trees[j]= std::make_shared<BIT<int>>(data,j*BS,(j+1)*BS);
+        trees[j]->increment(data[i]);
+    }
     ans= find_inversions(data);
     /*
     for ( int i= 0; i < n; ++i )
@@ -450,11 +567,10 @@ int main() {
         is >> x >> y;
         assert( 1 <= x and x <= n );
         --x;
-        auto old= T->countingAbove(0,x-1,data[x])+T->countingBelow(x+1,n-1,data[x]);
+        auto old= countingAbove(0,x-1,data[x])+countingBelow(x+1,n-1,data[x]);
         //std::cerr << "old= " << old << std::endl;
-        T->change_val(x,y);
-        data[x]= y;
-        auto neu= T->countingAbove(0,x-1,data[x])+T->countingBelow(x+1,n-1,data[x]);
+        change_value(x,y);
+        auto neu= countingAbove(0,x-1,data[x])+countingBelow(x+1,n-1,data[x]);
         //std::cerr << "new= " << neu << std::endl;
         ans= ans+neu-old;
         os << ans << '\n';
