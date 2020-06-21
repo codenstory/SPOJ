@@ -64,7 +64,7 @@ class rbtree {
     void fixup( holder &x ) {
         while ( x != root and color(x) != Black ) {
             auto i= which_son(x);
-            auto y= x->p->son[i];
+            auto y= x->p->son[i^1];
             if ( color(y) == Red ) {
                 flip(x->p), flip(y), rotate(x->p,i);
                 continue ;
@@ -83,6 +83,13 @@ class rbtree {
         }
         x->c= Black;
     }
+
+	void dump( holder &x ) {
+		if ( x != nil ) {
+			dump(x->son[L]), std::cerr << x->val << " ", dump(x->son[R]);
+			//std::cerr << std::endl;
+		}
+	}
 
 public:
     bool find_key( vtype val ) {
@@ -162,6 +169,7 @@ public:
             std::cerr << "tree size " << sz << std::endl;
             return false;
         }
+		assert( sz >= 1 and z->freq >= 1 );
         --sz, --z->freq, propagate(z);
         if ( z->freq )
             return true ;
@@ -184,6 +192,15 @@ public:
             fixup(x);
         return true ;
     }
+
+	void display() {
+		dump(root);
+		std::cerr << "\n";
+	}
+
+	size_t size() const {
+		return sz;
+	}
 
 #undef color
 #undef which_son
@@ -226,7 +243,11 @@ class rangetree {
                 tr[v]->push(data[l]);
                 assert( tr[v]->find_key(data[l]) );
             }
-        }
+			for ( auto l= i; l <= j; ++l )
+				assert( tr[v]->find_key(data[l]) );
+        } else {
+			//assert( false );
+		}
     }
 
     void update( int v, int i, int j, int pos, vtype old, vtype newval ) {
@@ -248,10 +269,13 @@ class rangetree {
         }
         assert( i < j );
         auto k= (i+j)>>1u;
+        update(L(v),i,k,pos,old,newval), update(R(v),k+1,j,pos,old,newval);
         auto ok= tr[v]->erase(old);
         assert( ok );
-        update(L(v),i,k,pos,old,newval), update(R(v),k+1,j,pos,old,newval);
         tr[v]->push(newval);
+		std::cerr << tr[v]->size() << " " << "After pushing " << newval << " in place of " << old << std::endl;
+		tr[v]->display();
+		std::cerr << std::endl;
     }
 
     inline size_t bf1( int i, int j, vtype key ) {
@@ -306,6 +330,7 @@ public:
     }
     void change_val( int pos, vtype newval ) {
         auto old_val= data[pos];
+		std::cerr << "Old val: " << old_val << std::endl;
         if ( newval != old_val )
             update(1,0,n-1,pos,old_val,newval);
     }
