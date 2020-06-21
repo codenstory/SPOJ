@@ -3,15 +3,38 @@
  * TOPIC: Red-Black trees, range trees, range counting
  * status:
  */
-#include <bits/stdc++.h>
+#include <iostream>
+#include <vector>
+#include <memory>
+#include <algorithm>
+#include <cassert>
+#include <istream>
+#include <ostream>
+#include <chrono>
+
+using namespace std::chrono;
+
+class mytimer {
+private:
+    high_resolution_clock::time_point t1 = high_resolution_clock::now();
+    std::string header;
+public:
+    mytimer( std::string action ): header(std::move(action)) {
+    }
+    ~mytimer() {
+        high_resolution_clock::time_point t2 = high_resolution_clock::now();
+        duration<double> time_span = duration_cast<duration<double>>(t2 - t1);
+        //std::cout << header << " took " << time_span.count() << " seconds\n";
+    }
+};
 
 template<typename vtype>
 class rbtree {
     struct cell;
     using holder= std::shared_ptr<cell>;
-    using t_dir= int;
-    enum { L, R };
-    enum { Red, Black };
+    using t_dir= unsigned char;
+    enum { L= 0, R= 1 };
+    enum { Red= L, Black= R };
     struct cell {
         unsigned char c= Red;
         vtype val{};
@@ -37,8 +60,9 @@ class rbtree {
         x->freq= x->card= 0;
         return x;
     }
-    void propagate( holder &x ) {
-        for (;x != nil; x->card= x->freq+x->son[L]->card+x->son[R]->card, x= x->p ) ;
+    void propagate( holder &z ) {
+        for ( auto x= z; x != nil; x->card= x->freq+x->son[L]->card+x->son[R]->card, x= x->p ) ;
+        assert( nil->card == 0 and nil->freq == 0 );
     }
     void rotate( holder &x, t_dir t ) {
         assert( t == L or t == R );
@@ -54,7 +78,7 @@ class rbtree {
         propagate(x);
     }
 
-    holder find( vtype val ) {
+    holder find( vtype val ) const {
         auto x= root;
         for ( ;x != nil and x->val != val; x= x->son[x->val<val?R:L] ) ;
         assert( x == nil or x->val == val );
@@ -62,7 +86,7 @@ class rbtree {
     }
 
     void fixup( holder &x ) {
-        while ( x != root and color(x) != Black ) {
+        while ( x != root and color(x) == Black ) {
             auto i= which_son(x);
             auto y= x->p->son[i^1];
             if ( color(y) == Red ) {
@@ -92,11 +116,10 @@ class rbtree {
 	}
 
 public:
-    bool find_key( vtype val ) {
-        auto x= find(val);
-        return x!=nil;
+    bool find_key( vtype val ) const {
+        return find(val) != nil;
     }
-    size_t rank( vtype key ) {
+    size_t rank( vtype key ) const {
         size_t rnk= 0;
         for ( auto x= root; x != nil; ) {
             if ( x->val > key )
@@ -112,7 +135,7 @@ public:
         return rnk;
     }
 
-    size_t exclusive_rank( vtype key ) {
+    size_t exclusive_rank( vtype key ) const {
         size_t rnk= 0;
         for ( auto x= root; x != nil; ) {
             if ( x->val > key )
@@ -141,14 +164,16 @@ public:
             return ;
         }
         *hold= x= make_cell(val), x->p= p, x->freq= 1;
+        if ( p != nil )
+            assert( p->son[L] == x or p->son[R] == x );
         assert( x->val == val and x->c == Red );
         for ( propagate(x); x != root and color(x->p) == Red; ) {
-            auto g= x->p->p;
-            assert( g != nil );
+            assert( color(x) == Red );
             auto i= which_son(x->p);
-            auto y= g->son[i^1u];
+            auto g= x->p->p, y= g->son[i^1u];
+            assert( g != nil );
+            assert( color(g) == Black );
             if ( color(y) == Red ) {
-                assert( color(g) == Black );
                 flip(g), flip(x->p), flip(y), x= g;
                 continue ;
             }
@@ -159,6 +184,7 @@ public:
             flip(x->p), flip(g), rotate(g,i^1u);
             break ;
         }
+        assert( root->p == nil );
         root->c= Black;
     }
 
@@ -216,8 +242,8 @@ template<typename vtype>
 class rangetree {
 #define L(v) ((v)<<1u)
 #define R(v) (1u|L(v))
-//#define LIMIT (0x400)
-#define LIMIT (0)
+#define LIMIT (500)
+//#define LIMIT (0)
 
     using rbtree_holder= std::shared_ptr<rbtree<vtype>>;
     std::vector<rbtree_holder> tr;
@@ -227,12 +253,12 @@ class rangetree {
     void build( int v, int i, int j ) {
         assert( j-i+1 > 0 );
         assert( v < tr.size() );
+        assert( not tr[v] );
         if ( j-i+1 > LIMIT ) {
             if ( i == j ) {
                 tr[v]= std::make_shared<rbtree<vtype>>();
                 for ( auto l= i; l <= j; ++l )
                     tr[v]->push(data[l]);
-                assert( tr[v]->find_key(data[i]) );
                 return ;
             }
             assert( i < j );
@@ -241,10 +267,7 @@ class rangetree {
             tr[v]= std::make_shared<rbtree<vtype>>();
             for ( auto l= i; l <= j; ++l ) {
                 tr[v]->push(data[l]);
-                assert( tr[v]->find_key(data[l]) );
             }
-			for ( auto l= i; l <= j; ++l )
-				assert( tr[v]->find_key(data[l]) );
         } else {
 			//assert( false );
 		}
@@ -273,9 +296,9 @@ class rangetree {
         auto ok= tr[v]->erase(old);
         assert( ok );
         tr[v]->push(newval);
-		std::cerr << tr[v]->size() << " " << "After pushing " << newval << " in place of " << old << std::endl;
-		tr[v]->display();
-		std::cerr << std::endl;
+		//std::cerr << tr[v]->size() << " " << "After pushing " << newval << " in place of " << old << std::endl;
+		//tr[v]->display();
+		//std::cerr << std::endl;
     }
 
     inline size_t bf1( int i, int j, vtype key ) {
@@ -326,11 +349,14 @@ public:
 
     rangetree( const std::vector<vtype> &input ) {
         data= input, n= data.size(), m= 4*n+7, tr.resize(m,nullptr);
-        build(1,0,n-1);
+        {
+            mytimer mt("building the tree");
+            build(1, 0, n - 1);
+        }
     }
     void change_val( int pos, vtype newval ) {
         auto old_val= data[pos];
-		std::cerr << "Old val: " << old_val << std::endl;
+		//std::cerr << "Old val: " << old_val << std::endl;
         if ( newval != old_val )
             update(1,0,n-1,pos,old_val,newval);
     }
@@ -346,6 +372,37 @@ public:
 
 using rt= rangetree<int>;
 
+template<typename vtype>
+void mergesort( std::vector<vtype> &c, int i, int j, size_t &res ) {
+    if ( i == j )
+        return ;
+    assert( i < j );
+    auto k= (i+j)>>1u;
+    std::vector<vtype> lft(c.begin()+i,c.begin()+k+1), rgt(c.begin()+k+1,c.begin()+j+1);
+    size_t ll= 0, rr= 0;
+    mergesort(lft,0,lft.size()-1,ll), mergesort(rgt,0,rgt.size()-1,rr);
+    int ii= 0,jj= 0, idx= i;
+    for ( ;ii < lft.size() and jj < rgt.size(); ) {
+        if ( lft[ii] <= rgt[jj] )
+            c[idx++]= lft[ii++];
+        else {
+            res+= lft.size()-ii, c[idx++]= rgt[jj++];
+        }
+    }
+    for ( ;ii < lft.size(); c[idx++]= lft[ii++] ) ;
+    for ( ;jj < rgt.size(); c[idx++]= rgt[jj++] ) ;
+    assert( idx == j+1 );
+    res+= ll, res+= rr;
+}
+
+template<typename vtype>
+size_t find_inversions( const std::vector<vtype> &c ) {
+    auto vec= c;
+    size_t res= 0;
+    mergesort(vec,0,vec.size()-1,res);
+    return res;
+}
+
 int main() {
     std::ios_base::sync_with_stdio(false), std::cin.tie(nullptr);
 #ifndef ONLINE_JUDGE
@@ -360,12 +417,15 @@ int main() {
     for ( auto &v: data )
         is >> v;
     std::shared_ptr<rt> T= std::make_shared<rt>(data);
-    ans= 0;
+    ans= find_inversions(data);
+    /*
     for ( int i= 0; i < n; ++i )
         ans+= T->countingAbove(0,i-1,data[i])+T->countingBelow(i+1,n-1,data[i]);
     assert( 0 == (ans&1) );
     ans>>= 1;
+    */
     //std::cerr << "initially: " << ans << std::endl;
+    mytimer mt("answering the queries");
     for ( is >> qr; qr--; ) {
         int x,y;
         is >> x >> y;
