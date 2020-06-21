@@ -1,7 +1,7 @@
 /**
  * SWAPS
  * TOPIC: Red-Black trees, range trees, range counting
- * status:
+ * status: Accepted
  */
 #include <iostream>
 #include <vector>
@@ -24,14 +24,14 @@ public:
     ~mytimer() {
         high_resolution_clock::time_point t2 = high_resolution_clock::now();
         duration<double> time_span = duration_cast<duration<double>>(t2 - t1);
-        //std::cout << header << " took " << time_span.count() << " seconds\n";
+        //std::cout << header << " took " << time_span.count() << " seconds" << std::endl;
     }
 };
 
 template<typename vtype>
 class rbtree {
     struct cell;
-    using holder= std::shared_ptr<cell>;
+    using holder= cell*;
     using t_dir= unsigned char;
     enum { L= 0, R= 1 };
     enum { Red= L, Black= R };
@@ -47,15 +47,20 @@ class rbtree {
 #define which_son(x) ((x)->p->son[L] == (x)?L:R)
 #define flip(x) ((x)->c^=1u)
 
+    std::vector<holder> pool;
+    int curr;
+
     holder root, nil;
     size_t sz{};
     holder make_nil() {
-        auto x= std::make_shared<cell>();
+        auto x= pool[curr++];
         x->c= Black, x->son[L]= x->son[R]= x->p= x, x->card= x->freq= 0;
         return x;
     }
     holder make_cell( vtype val ) {
-        auto x= std::make_shared<cell>();
+        if ( curr == pool.size() )
+            pool.push_back(new cell());
+        auto x= pool[curr++];
         x->c= Red, x->son[L]= x->son[R]= x->p= nil, x->val= val;
         x->freq= x->card= 0;
         return x;
@@ -232,8 +237,18 @@ public:
 #undef which_son
 #undef flip
 
-    explicit rbtree() {
+    explicit rbtree( size_t sz ) {
+        curr= 0, pool.resize(sz, nullptr);
+        for ( auto &v: pool )
+            v= new cell();
         root= nil= make_nil();
+    }
+
+    ~rbtree() {
+        for ( auto &v: pool ) {
+            if ( v )
+                delete v;
+        }
     }
 
 };
@@ -242,7 +257,7 @@ template<typename vtype>
 class rangetree {
 #define L(v) ((v)<<1u)
 #define R(v) (1u|L(v))
-#define LIMIT (0x400)
+#define LIMIT (0x200)
 //#define LIMIT (0)
 
     using rbtree_holder= std::shared_ptr<rbtree<vtype>>;
@@ -285,7 +300,7 @@ class rangetree {
         if ( i == j ) {
             assert( data[pos] == old );
             if ( not tr[v] ) {
-                tr[v]= std::make_shared<rbtree<vtype>>();
+                tr[v]= std::make_shared<rbtree<vtype>>(j-i+1);
                 tr[v]->push(newval);
                 data[pos]= newval;
                 return ;
@@ -300,7 +315,7 @@ class rangetree {
         auto k= (i+j)>>1u;
         update(L(v),i,k,pos,old,newval), update(R(v),k+1,j,pos,old,newval);
         if ( not tr[v] ) {
-            tr[v]= std::make_shared<rbtree<vtype>>();
+            tr[v]= std::make_shared<rbtree<vtype>>(j-i+1);
             for ( auto l= i; l <= j; tr[v]->push(data[l++]) ) ;
             return ;
         }
@@ -334,7 +349,7 @@ class rangetree {
                 return bf1(i,j,key);
             }
             if ( not tr[v] ) {
-                tr[v]= std::make_shared<rbtree<vtype>>();
+                tr[v]= std::make_shared<rbtree<vtype>>(j-i+1);
                 for ( auto l= i; l <= j; tr[v]->push(data[l++]) ) ;
             }
             auto res= tr[v]->rank(key);
@@ -353,7 +368,7 @@ class rangetree {
                 return bf2(i,j,key);
             }
             if ( not tr[v] ) {
-                tr[v]= std::make_shared<rbtree<vtype>>();
+                tr[v]= std::make_shared<rbtree<vtype>>(j-i+1);
                 for ( auto l= i; l <= j; tr[v]->push(data[l++]) ) ;
             }
             auto res= tr[v]->exclusive_rank(key);
@@ -389,7 +404,7 @@ public:
 #undef R
 };
 
-using rt= rangetree<int>;
+using rt= rangetree<std::uint16_t>;
 
 template<typename vtype>
 void mergesort( std::vector<vtype> &c, int i, int j, size_t &res ) {
@@ -397,20 +412,22 @@ void mergesort( std::vector<vtype> &c, int i, int j, size_t &res ) {
         return ;
     assert( i < j );
     auto k= (i+j)>>1u;
-    std::vector<vtype> lft(c.begin()+i,c.begin()+k+1), rgt(c.begin()+k+1,c.begin()+j+1);
     size_t ll= 0, rr= 0;
-    mergesort(lft,0,lft.size()-1,ll), mergesort(rgt,0,rgt.size()-1,rr);
-    int ii= 0,jj= 0, idx= i;
-    for ( ;ii < lft.size() and jj < rgt.size(); ) {
-        if ( lft[ii] <= rgt[jj] )
-            c[idx++]= lft[ii++];
+    mergesort(c,i,k,ll), mergesort(c,k+1,j,rr);
+    auto tmp= std::vector<vtype>(j-i+1);
+    int ii= i, jj= k+1, idx= 0;
+    for ( ;ii <= k and jj <= j; ) {
+        if ( c[ii] <= c[jj] )
+            tmp[idx++]= c[ii++];
         else {
-            res+= lft.size()-ii, c[idx++]= rgt[jj++];
+            res+= k+1-ii, tmp[idx++]= c[jj++];
         }
     }
-    for ( ;ii < lft.size(); c[idx++]= lft[ii++] ) ;
-    for ( ;jj < rgt.size(); c[idx++]= rgt[jj++] ) ;
-    assert( idx == j+1 );
+    for ( ;ii <= k; tmp[idx++]= c[ii++] ) ;
+    for ( ;jj <= j; tmp[idx++]= c[jj++] ) ;
+    for ( int l= 0; l < j-i+1; ++l )
+        c[l+i]= tmp[l];
+    //std::cerr << "done with " << i << ", " << j << std::endl;
     res+= ll, res+= rr;
 }
 
@@ -432,11 +449,14 @@ int main() {
     int n,qr;
     size_t ans= 0;
     is >> n;
-    std::vector<int> data(n);
+    std::vector<std::uint16_t> data(n);
     for ( auto &v: data )
         is >> v;
     std::shared_ptr<rt> T= std::make_shared<rt>(data);
-    ans= find_inversions(data);
+    {
+        mytimer mt("finding inversions");
+        ans = find_inversions(data);
+    }
     /*
     for ( int i= 0; i < n; ++i )
         ans+= T->countingAbove(0,i-1,data[i])+T->countingBelow(i+1,n-1,data[i]);

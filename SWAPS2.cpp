@@ -24,7 +24,7 @@ public:
     ~mytimer() {
         high_resolution_clock::time_point t2 = high_resolution_clock::now();
         duration<double> time_span = duration_cast<duration<double>>(t2 - t1);
-        std::cout << header << " took " << time_span.count() << " seconds\n";
+        //std::cout << header << " took " << time_span.count() << " seconds\n";
     }
 };
 
@@ -407,7 +407,6 @@ int main() {
             trees[j]->push(data[i]);
         }
     }
-    return 0;
     /*
     for ( int i= 0; i < n; ++i )
         ans+= T->countingAbove(0,i-1,data[i])+T->countingBelow(i+1,n-1,data[i]);

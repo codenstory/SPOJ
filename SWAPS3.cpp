@@ -24,7 +24,7 @@ public:
     ~mytimer() {
         high_resolution_clock::time_point t2 = high_resolution_clock::now();
         duration<double> time_span = duration_cast<duration<double>>(t2 - t1);
-        //std::cout << header << " took " << time_span.count() << " seconds\n";
+        std::cout << header << " took " << time_span.count() << " seconds\n";
     }
 };
 
@@ -395,7 +395,7 @@ using rt= rangetree<int>;
 #define LSB(v) ((v) & ((~(v))+1u))
 template<typename vtype>
 class BIT {
-#define MAXW (1<<16)
+#define MAXW (50'001)
     std::vector<size_t> tr;
     int n,K;
     size_t prefix( unsigned int i ) {
@@ -439,34 +439,41 @@ void mergesort( std::vector<vtype> &c, int i, int j, size_t &res ) {
         return ;
     assert( i < j );
     auto k= (i+j)>>1u;
-    std::vector<vtype> lft(c.begin()+i,c.begin()+k+1), rgt(c.begin()+k+1,c.begin()+j+1);
     size_t ll= 0, rr= 0;
-    mergesort(lft,0,lft.size()-1,ll), mergesort(rgt,0,rgt.size()-1,rr);
-    int ii= 0,jj= 0, idx= i;
-    for ( ;ii < lft.size() and jj < rgt.size(); ) {
-        if ( lft[ii] <= rgt[jj] )
-            c[idx++]= lft[ii++];
+    mergesort(c,i,k,ll), mergesort(c,k+1,j,rr);
+    auto tmp= std::vector<vtype>(j-i+1);
+    int ii= i, jj= k+1, idx= 0;
+    for ( ;ii <= k and jj <= j; ) {
+        if ( c[ii] <= c[jj] )
+            tmp[idx++]= c[ii++];
         else {
-            res+= lft.size()-ii, c[idx++]= rgt[jj++];
+            res+= k+1-ii, tmp[idx++]= c[jj++];
         }
     }
-    for ( ;ii < lft.size(); c[idx++]= lft[ii++] ) ;
-    for ( ;jj < rgt.size(); c[idx++]= rgt[jj++] ) ;
-    assert( idx == j+1 );
+    for ( ;ii <= k; tmp[idx++]= c[ii++] ) ;
+    for ( ;jj <= j; tmp[idx++]= c[jj++] ) ;
+    for ( int l= 0; l < j-i+1; ++l )
+        c[l+i]= tmp[l];
+    //std::cerr << "done with " << i << ", " << j << std::endl;
     res+= ll, res+= rr;
 }
 
 template<typename vtype>
 size_t find_inversions( const std::vector<vtype> &c ) {
-    auto vec= c;
+    //auto vec= c;
     size_t res= 0;
-    mergesort(vec,0,vec.size()-1,res);
+    //mergesort(vec,0,vec.size()-1,res);
+    auto B= std::make_shared<BIT<std::uint16_t>>(std::vector<uint16_t>{},0,0);
+    for ( auto x: c ) {
+        res+= B->countAbove(x);
+        B->increment(x);
+    }
     return res;
 }
 
 size_t BS;
-std::vector<std::shared_ptr<BIT<int>>> trees;
-std::vector<int> data;
+std::vector<std::shared_ptr<BIT<std::uint16_t>>> trees;
+std::vector<std::uint16_t> data;
 int n;
 
 template<typename vtype>
@@ -486,7 +493,7 @@ size_t countingAbove( int qi, int qj, vtype key ) {
     for ( int t= bi+1; t <= bj-1; ++t ) {
         ans+= trees[t]->countAbove(key);
     }
-    for ( int t= qi; t < (bi+1)*BS; ++t )
+    for ( int t= qi; t < (bi+1)*BS and t <= qj; ++t )
         if ( data[t] > key )
             ++ans;
     for ( int t= bj*BS; t <= qj; ++t )
@@ -543,17 +550,27 @@ int main() {
     size_t ans= 0;
     is >> n;
     for ( BS= 1u; BS <= n/BS; ++BS ) ;
+    if ( not --BS ) BS= 1;
     data.resize(n);
-    for ( auto &v: data )
-        is >> v;
-    trees.resize(n/BS+0x10,nullptr);
-    for ( int i= 0; i < n; ++i ) {
-        int j= i/BS;
-        if ( not trees[j] )
-            trees[j]= std::make_shared<BIT<int>>(data,j*BS,(j+1)*BS);
-        trees[j]->increment(data[i]);
+    {
+        mytimer mt("reading input");
+        for (auto &v: data)
+            is >> v;
     }
-    ans= find_inversions(data);
+    {
+        mytimer mt("blocks preprocessing");
+        trees.resize(n / BS + 0x10, nullptr);
+        for (int i = 0; i < n; ++i) {
+            int j = i / BS;
+            if (not trees[j])
+                trees[j] = std::make_shared<BIT<std::uint16_t>>(data, j * BS, std::min(n,(int)((j + 1) * BS)));
+            trees[j]->increment(data[i]);
+        }
+    }
+    {
+        mytimer mt("inversion counting");
+        ans = find_inversions(data);
+    }
     /*
     for ( int i= 0; i < n; ++i )
         ans+= T->countingAbove(0,i-1,data[i])+T->countingBelow(i+1,n-1,data[i]);
