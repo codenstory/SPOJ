@@ -24,14 +24,15 @@ public:
     ~mytimer() {
         high_resolution_clock::time_point t2 = high_resolution_clock::now();
         duration<double> time_span = duration_cast<duration<double>>(t2 - t1);
-        //std::cout << header << " took " << time_span.count() << " seconds\n";
+        std::cout << header << " took " << time_span.count() << " seconds\n";
     }
 };
 
 template<typename vtype>
 class rbtree {
     struct cell;
-    using holder= std::shared_ptr<cell>;
+    //using holder= std::shared_ptr<cell>;
+    using holder= cell*;
     using t_dir= unsigned char;
     enum { L= 0, R= 1 };
     enum { Red= L, Black= R };
@@ -43,6 +44,8 @@ class rbtree {
         vtype val{};
         unsigned char c= Red;
     };
+    std::vector<holder> pool;
+    int curr;
 
 #define color(x) ((x)->c)
 #define which_son(x) ((x)->p->son[L] == (x)?L:R)
@@ -51,12 +54,15 @@ class rbtree {
     holder root, nil;
     size_t sz{};
     holder make_nil() {
-        auto x= std::make_shared<cell>();
+        auto x= pool[curr++];
         x->c= Black, x->son[L]= x->son[R]= x->p= x, x->card= x->freq= 0;
         return x;
     }
     holder make_cell( vtype val ) {
-        auto x= std::make_shared<cell>();
+        if ( curr == pool.size() ) {
+            pool.push_back(new cell());
+        }
+        auto x= pool[curr++];
         x->c= Red, x->son[L]= x->son[R]= x->p= nil, x->val= val;
         x->freq= x->card= 0;
         return x;
@@ -159,21 +165,21 @@ public:
             p= x, hold= &(x->son[t]), x= x->son[t];
         }
         if ( x != nil ) {
-            //assert( x->val == val );
-            //assert( x->freq >= 1 );
+            assert( x->val == val );
+            assert( x->freq >= 1 );
             ++x->freq, propagate(x);
             return ;
         }
         *hold= x= make_cell(val), x->p= p, x->freq= 1;
-        //if ( p != nil )
-            //assert( p->son[L] == x or p->son[R] == x );
-        //assert( x->val == val and x->c == Red );
+        if ( p != nil )
+            assert( p->son[L] == x or p->son[R] == x );
+        assert( x->val == val and x->c == Red );
         for ( propagate(x); x != root and color(x->p) == Red; ) {
-            //assert( color(x) == Red );
+            assert( color(x) == Red );
             auto i= which_son(x->p);
             auto g= x->p->p, y= g->son[i^1u];
-            //assert( g != nil );
-            //assert( color(g) == Black );
+            assert( g != nil );
+            assert( color(g) == Black );
             if ( color(y) == Red ) {
                 flip(g), flip(x->p), flip(y), x= g;
                 continue ;
@@ -185,7 +191,7 @@ public:
             flip(x->p), flip(g), rotate(g,i^1u);
             break ;
         }
-        //assert( root->p == nil );
+        assert( root->p == nil );
         root->c= Black;
     }
 
@@ -196,18 +202,18 @@ public:
             std::cerr << "tree size " << sz << std::endl;
             return false;
         }
-		//assert( sz >= 1 and z->freq >= 1 );
+		assert( sz >= 1 and z->freq >= 1 );
         --sz, --z->freq, propagate(z);
         if ( z->freq )
             return true ;
-        //assert( z->freq == 0 );
+        assert( z->freq == 0 );
         if ( z->son[L] != nil and z->son[R] != nil ) {
             auto y= z->son[R];
             for ( ;y->son[L] != nil; y= y->son[L] ) ;
             std::swap(z->val,y->val), std::swap(z->freq,y->freq);
             propagate(y), z= y;
         }
-        //assert( z->son[L] == nil or z->son[R] == nil );
+        assert( z->son[L] == nil or z->son[R] == nil );
         auto x= z->son[L]==nil?z->son[R]:z->son[L];
         if ( (x->p= z->p) == nil ) {
             root= x;
@@ -218,6 +224,13 @@ public:
         if ( color(z) == Black )
             fixup(x);
         return true ;
+    }
+
+    ~rbtree() {
+        for ( auto &v: pool )
+            if ( v ) {
+                delete v;
+            }
     }
 
 	void display() {
@@ -233,13 +246,17 @@ public:
 #undef which_son
 #undef flip
 
-    explicit rbtree() {
+    explicit rbtree( size_t sz ) {
+        pool.resize(sz+0x10,nullptr), curr= 0;
+        for ( auto &v: pool )
+            //v= std::make_shared<cell>();
+            v= new cell();
         root= nil= make_nil();
     }
 
 };
 
-using container= rbtree<std::int64_t>;
+using container= rbtree<std::uint16_t>;
 
 template<typename vtype>
 void mergesort( std::vector<vtype> &c, int i, int j, size_t &res ) {
@@ -247,20 +264,22 @@ void mergesort( std::vector<vtype> &c, int i, int j, size_t &res ) {
         return ;
     assert( i < j );
     auto k= (i+j)>>1u;
-    std::vector<vtype> lft(c.begin()+i,c.begin()+k+1), rgt(c.begin()+k+1,c.begin()+j+1);
     size_t ll= 0, rr= 0;
-    mergesort(lft,0,lft.size()-1,ll), mergesort(rgt,0,rgt.size()-1,rr);
-    int ii= 0,jj= 0, idx= i;
-    for ( ;ii < lft.size() and jj < rgt.size(); ) {
-        if ( lft[ii] <= rgt[jj] )
-            c[idx++]= lft[ii++];
+    mergesort(c,i,k,ll), mergesort(c,k+1,j,rr);
+    auto tmp= std::vector<vtype>(j-i+1);
+    int ii= i, jj= k+1, idx= 0;
+    for ( ;ii <= k and jj <= j; ) {
+        if ( c[ii] <= c[jj] )
+            tmp[idx++]= c[ii++];
         else {
-            res+= lft.size()-ii, c[idx++]= rgt[jj++];
+            res+= k+1-ii, tmp[idx++]= c[jj++];
         }
     }
-    for ( ;ii < lft.size(); c[idx++]= lft[ii++] ) ;
-    for ( ;jj < rgt.size(); c[idx++]= rgt[jj++] ) ;
-    //assert( idx == j+1 );
+    for ( ;ii <= k; tmp[idx++]= c[ii++] ) ;
+    for ( ;jj <= j; tmp[idx++]= c[jj++] ) ;
+    for ( int l= 0; l < j-i+1; ++l )
+        c[l+i]= tmp[l];
+    //std::cerr << "done with " << i << ", " << j << std::endl;
     res+= ll, res+= rr;
 }
 
@@ -268,13 +287,14 @@ template<typename vtype>
 size_t find_inversions( const std::vector<vtype> &c ) {
     auto vec= c;
     size_t res= 0;
+    //std::cerr << "n= " << vec.size() << std::endl;
     mergesort(vec,0,vec.size()-1,res);
     return res;
 }
 
-size_t BS;
+size_t BS,K;
 std::vector<std::shared_ptr<container>> trees;
-std::vector<std::int16_t> data;
+std::vector<std::uint16_t> data;
 int n;
 
 template<typename vtype>
@@ -283,21 +303,21 @@ size_t countingAbove( int qi, int qj, vtype key ) {
         return 0;
     qi= std::min(n-1,std::max(0,qi));
     qj= std::min(n-1,qj);
-    int bi= qi/BS, bj= qj/BS;
+    int bi= (qi>>K), bj= (qj>>K);
     if ( bi == bj ) {
         return std::count_if(data.begin()+qi,data.begin()+qj+1,[key](auto x) {
             return x > key;
         });
     }
-    //assert( bi < bj );
+    assert( bi < bj );
     size_t ans= 0;
     for ( int t= bi+1; t <= bj-1; ++t ) {
         ans+= BS-trees[t]->rank(key);
     }
-    for ( int t= qi; t < (bi+1)*BS; ++t )
+    for ( int t= qi; t < ((bi+1)<<K); ++t )
         if ( data[t] > key )
             ++ans;
-    for ( int t= bj*BS; t <= qj; ++t )
+    for ( int t= (bj<<K); t <= qj; ++t )
         if ( data[t] > key )
             ++ans;
     return ans;
@@ -309,23 +329,23 @@ size_t countingBelow( int qi, int qj, vtype key ) {
         return 0;
     qi= std::min(n-1,std::max(0,qi));
     qj= std::min(n-1,qj);
-    int bi= qi/BS, bj= qj/BS;
+    int bi= (qi>>K), bj= qj>>K;
     if ( bi == bj ) {
         return std::count_if(data.begin()+qi,data.begin()+qj+1,[key](auto x) {
             return x < key;
         });
     }
-    //assert( bi < bj );
+    assert( bi < bj );
     size_t ans= 0;
     for ( int t= bi+1; t <= bj-1; ++t ) {
         ans+= trees[t]->exclusive_rank(key);
     }
-    //assert( qi < (bi+1)*BS );
+    assert( qi < ((bi+1)<<K) );
     for ( int t= qi; t < (bi+1)*BS and t <= qj; ++t )
         if ( data[t] < key )
             ++ans;
-    //assert( qi < bj*BS );
-    for ( int t= bj*BS; t <= qj; ++t )
+    assert( qi < (bj<<K) );
+    for ( int t= (bj<<K); t <= qj; ++t )
         if ( data[t] < key )
             ++ans;
     return ans;
@@ -333,7 +353,8 @@ size_t countingBelow( int qi, int qj, vtype key ) {
 
 template<typename vtype>
 void change_value( int pos, vtype new_val ) {
-    int bi= pos/BS;
+    int bi= pos>>K;
+    assert( pos < n );
     auto old_val= data[pos];
     auto ok= trees[bi]->erase(old_val);
     assert( ok );
@@ -346,7 +367,8 @@ int getint() {
     static int dig[256]= {0};
     if ( not dig['0'] )
         for ( ch= '0'; ch <= '9'; dig[ch++]= 1 ) ;
-    for ( ;(ch= getchar_unlocked()) != EOF and not dig[ch]; ) ;
+    for ( ;(ch= getchar_unlocked()) != EOF and not dig[ch] and ch != '-'; ) ;
+    assert( ch != '-' );
     for ( n= ch-'0'; (ch= getchar_unlocked()) != EOF and dig[ch]; n= 10*n+ch-'0' ) ;
     return n;
 }
@@ -360,20 +382,32 @@ int main() {
     //std::ostream &os = std::cout;
     int qr;
     size_t ans= 0;
-    n= getint();
-    for ( BS= 1u; BS <= n/BS; ++BS ) ;
-    if ( not --BS ) BS= 1;
-    data.resize(n);
-    for ( auto &v: data )
-        v= getint();
-    trees.resize(n/BS+BS,nullptr);
-    for ( int i= 0; i < n; ++i ) {
-        int j= i/BS;
-        if ( not trees[j] )
-            trees[j]= std::make_shared<container>();
-        trees[j]->push(data[i]);
+    {
+        mytimer mt("reading input");
+        n = getint();
+        for (BS = 1u; BS <= n / BS; ++BS);
+        if (not --BS) BS = 1;
+        for ( K= 0; (1<<K) < BS; ++K ) ;
+        BS= (1<<K);
+        data.resize(n);
+        for (auto &v: data)
+            v = getint();
     }
-    ans= find_inversions(data);
+    {
+        mytimer mt("counting inversions");
+        ans = find_inversions(data);
+    }
+    trees.resize((n>>K)+BS,nullptr);
+    {
+        mytimer mt("preprocessing blocks");
+        for (int i = 0; i < n; ++i) {
+            int j = i>>K;
+            if (not trees[j])
+                trees[j] = std::make_shared<container>(1<<K);
+            trees[j]->push(data[i]);
+        }
+    }
+    return 0;
     /*
     for ( int i= 0; i < n; ++i )
         ans+= T->countingAbove(0,i-1,data[i])+T->countingBelow(i+1,n-1,data[i]);
