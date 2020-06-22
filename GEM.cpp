@@ -1,18 +1,18 @@
 /**
  * GEM
  * TOPIC: simulation
- * status:
+ * status: Accepted
  */
 #include <bits/stdc++.h>
-#define BIT(k) (1ull<<(k))
+#define BIT(k)  (1ull<<(k))
 #define MASK(k) (BIT(k)-1ull)
-using u64= std::uint64_t;
-using state= u64;
-using slice= u64;
-using mask= u64;
+using u64   = std::uint64_t;
+using state = u64;
+using slice = u64;
+using mask  = u64;
 #define SH (3)
-#define A (10)
-#define N (BIT(SH))
+#define A  (10)
+#define N  (BIT(SH))
 #define E(i,j) (((i)<<SH)+(j))
 
 const slice EMPTY= 0ull;
@@ -47,18 +47,20 @@ namespace cbd_helper {
 
     slice reduce( slice s ) {
         slice res= s;
-        for ( int i= 0; i < N; ++i )
-            if ( __builtin_popcount(s & get_row(i)) >= 3 ) {
-                for ( int j= 0, t; j < N; j= t ) {
+        for ( int i= 0,j,t; i < N; ++i )
+            if ( true or __builtin_popcount(s & get_row(i)) >= 3 ) {
+                for ( j= 0; j < N; j= t ) {
+                    for ( ;j < N and not (s&BIT(E(i,j))); ++j ) ;
                     for ( t= j; t < N and (s&BIT(E(i,t))); ++t ) ;
                     if ( (t-j) >= 3 ) {
                         res&= ~(MASK(t-j) << E(i,j));
                     }
                 }
             }
-        for ( int j= 0; j < N; ++j )
-            if ( __builtin_popcount(s & get_col(j)) >= 3 ) {
-                for ( int i= 0, t; i < N; i= t ) {
+        for ( int j= 0,i,t; j < N; ++j )
+            if ( true or __builtin_popcount(s & get_col(j)) >= 3 ) {
+                for ( i= 0; i < N; i= t ) {
+                    for ( ;i < N and not (s & BIT(E(i,j))); ++i ) ;
                     for ( t= i; t < N and (s&BIT(E(t,j))); ++t ) ;
                     if ( (t-i) >= 3 ) {
                         res&= ~(VMASK(t-i) << E(i,j));
@@ -72,7 +74,7 @@ namespace cbd_helper {
 #define LSB(u) ((u) & ((~(u))+1ull))
 char which[BIT(20)];
 
-u64 who( u64 u ) {
+int who( u64 u ) {
     if ( u < BIT(20) )
         return which[u];
     if ( u < BIT(40) )
@@ -111,15 +113,16 @@ class cboard {
 
     void normalize( grid &c ) {
         for ( int j= 0,i,t; j < N; ++j ) {
-            int nonzero= 0;
+            int zero= 0;
             for ( i= 0; i < N; ++i )
-                if ( c[i][j] != '.' and ++nonzero )
+                if ( c[i][j] == '.' and ++zero )
                     ;
             for ( t= N-1, i= N-1; i >= 0; --i )
                 if ( c[i][j] != '.' )
                     c[t--][j]= c[i][j];
-            for ( i= 0; i < nonzero; ++i )
+            for ( i= 0; i < zero; ++i )
                 c[i][j]= '.';
+            assert( i == t+1 );
         }
     }
 
@@ -146,13 +149,11 @@ public:
 
     bool xchg( int r1, int c1, int r2, int c2 ) {
         if ( r1 == r2 and c1 == c2 ) {
-            std::cerr << "Same positions" << std::endl;
             return false;
         }
         int z1= g[r1][c1]=='.'?0:(g[r1][c1]-'0'),
             z2= g[r2][c2]=='.'?0:(g[r2][c2]-'0');
         if ( z1 == z2 ) {
-            std::cerr << "Nothing to swap: " << g[r1][c1] << " vs " << g[r2][c2] << std::endl;
             return false;
         }
         auto &sls= slices;
@@ -162,8 +163,10 @@ public:
         sls[z2]&= ~BIT(E(r2,c2)), sls[z2]|= BIT(E(r1,c1));
         sls[z1]= cbd_helper::reduce(sls[z1]);
         sls[z2]= cbd_helper::reduce(sls[z2]);
-        puts("Success");
+        //std::swap(g[r1][c1],g[r2][c2]);
         slices2board(sls,g);
+        normalize(g);
+        slices= board2slices(g);
         return true ;
     }
 
@@ -172,33 +175,31 @@ public:
         do {
             flag= false ;
             for ( int ch= ONE; ch <= NINE; ++ch ) {
-                puts("Start reduction");
                 auto s= cbd_helper::reduce(slices[ch]);
-                puts("End reduction");
                 if ( s != slices[ch] )
                     flag= true ;
                 slices[ch]= s;
             }
             if ( flag ) {
-                puts("Start normalization");
                 slices2board(slices, g), normalize(g), slices = board2slices(g);
-                puts("End normalization");
             }
         } while ( flag );
         return *this;
     }
 
     bool is_empty() const {
-        return std::count_if(slices.begin()+ONE,slices.end()+NINE+1,[](auto x) {
+        return std::count_if(slices.begin()+ONE,slices.end(),[](auto x) {
             return x != 0;
-        });
+        }) == 0;
     }
 };
 
 int main() {
 #ifndef ONLINE_JUDGE
-    freopen("input.txt", "r", stdin);
+    freopen("in.txt", "r", stdin);
 #endif
+    int dx[]= {-1,0,1,0},
+        dy[]= {0,1,0,-1};
     std::istream &is = std::cin;
     std::ostream &os = std::cout;
     int i,j,k,t;
@@ -217,21 +218,16 @@ int main() {
         cboard c(g);
         for ( i= 0; i < N; ++i )
             for ( j= 0; j < N; ++j )
-                for ( k= i-1; k <= i+1 and k < N; ++k )
-                    for ( t= j-1; t <= j+1 and t < N; ++t )
-                        if ( 0 <= k and 0 <= t )
-                            if ( abs(i-k)+abs(t-j) == 1 ) {
-                                auto z = c;
-                                puts("Checking");
-                                if (z.xchg(i, j, k, t)) {
-                                    puts("Perform reductions");
-                                    if (z.perform_reductions().is_empty())
-                                        goto GOOD;
-                                    else puts("bad news");
-                                    puts("End reductions");
-                                }
-                                puts("Done checking");
-                            }
+                for ( int l= 0; l < 4; ++l ) {
+                    k= i+dx[l], t= j+dy[l];
+                    if ( 0 <= k and k < N and 0 <= t and t < N ) {
+                        auto z = c;
+                        if (z.xchg(i, j, k, t)) {
+                            if (z.perform_reductions().is_empty())
+                                goto GOOD;
+                        }
+                    }
+                }
         os << "No" << '\n';
         continue ;
         GOOD: os << "Yes" << '\n';
