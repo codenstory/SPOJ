@@ -51,7 +51,7 @@ namespace cbd_helper {
             if ( __builtin_popcount(s & get_row(i)) >= 3 ) {
                 for ( int j= 0, t; j < N; j= t ) {
                     for ( t= j; t < N and (s&BIT(E(i,t))); ++t ) ;
-                    if ( t-j >= 3 ) {
+                    if ( (t-j) >= 3 ) {
                         res&= ~(MASK(t-j) << E(i,j));
                     }
                 }
@@ -60,7 +60,7 @@ namespace cbd_helper {
             if ( __builtin_popcount(s & get_col(j)) >= 3 ) {
                 for ( int i= 0, t; i < N; i= t ) {
                     for ( t= i; t < N and (s&BIT(E(t,j))); ++t ) ;
-                    if ( t-i >= 3 ) {
+                    if ( (t-i) >= 3 ) {
                         res&= ~(VMASK(t-i) << E(i,j));
                     }
                 }
@@ -70,7 +70,7 @@ namespace cbd_helper {
 };
 
 #define LSB(u) ((u) & ((~(u))+1ull))
-char which[1<<20];
+char which[BIT(20)];
 
 u64 who( u64 u ) {
     if ( u < BIT(20) )
@@ -129,7 +129,7 @@ class cboard {
         for ( int ch= ONE; ch <= NINE; ++ch ) {
             for ( auto u= s[ch]; u; u&= ~LSB(u) ) {
                 auto idx= who(LSB(u));
-                int x= (idx>>3u), y= (idx&7ull);
+                int x= (idx>>SH), y= (idx&MASK(SH));
                 c[x][y]= (ch+'0');
             }
         }
@@ -139,22 +139,30 @@ public:
 
     cboard( const std::vector<std::vector<char>> &g ) {
         this->g= g, slices= board2slices(g);
+        auto z= g;
+        slices2board(slices,z);
+        assert( z == g );
     }
 
     bool xchg( int r1, int c1, int r2, int c2 ) {
-        if ( r1 == r2 and c1 == c2 )
+        if ( r1 == r2 and c1 == c2 ) {
+            std::cerr << "Same positions" << std::endl;
             return false;
-        int z1= g[r1][c2]=='.'?0:g[r1][c1]-'0',
-            z2= g[r2][c2]=='.'?0:g[r2][c2]-'0';
-        if ( z1 == z2 )
+        }
+        int z1= g[r1][c1]=='.'?0:(g[r1][c1]-'0'),
+            z2= g[r2][c2]=='.'?0:(g[r2][c2]-'0');
+        if ( z1 == z2 ) {
+            std::cerr << "Nothing to swap: " << g[r1][c1] << " vs " << g[r2][c2] << std::endl;
             return false;
+        }
         auto &sls= slices;
         assert( (sls[z1] & BIT(E(r1,c1))) );
         assert( (sls[z2] & BIT(E(r2,c2))) );
-        sls[z1]&= ~BIT(E(r1,c1)), sls[z2]|= BIT(E(r2,c2));
-        sls[z2]&= ~BIT(E(r2,c2)), sls[z1]|= BIT(E(r1,c1));
+        sls[z1]&= ~BIT(E(r1,c1)), sls[z1]|= BIT(E(r2,c2));
+        sls[z2]&= ~BIT(E(r2,c2)), sls[z2]|= BIT(E(r1,c1));
         sls[z1]= cbd_helper::reduce(sls[z1]);
         sls[z2]= cbd_helper::reduce(sls[z2]);
+        puts("Success");
         slices2board(sls,g);
         return true ;
     }
@@ -164,13 +172,17 @@ public:
         do {
             flag= false ;
             for ( int ch= ONE; ch <= NINE; ++ch ) {
+                puts("Start reduction");
                 auto s= cbd_helper::reduce(slices[ch]);
+                puts("End reduction");
                 if ( s != slices[ch] )
                     flag= true ;
                 slices[ch]= s;
             }
             if ( flag ) {
+                puts("Start normalization");
                 slices2board(slices, g), normalize(g), slices = board2slices(g);
+                puts("End normalization");
             }
         } while ( flag );
         return *this;
@@ -191,25 +203,35 @@ int main() {
     std::ostream &os = std::cout;
     int i,j,k,t;
     for ( i= 0; i < 20; which[BIT(i)]= i, ++i ) ;
-    grid g(N,std::vector<char>(N));
     for ( std::string s; (is >> s) and s != "0"; ) {
-        for ( i= 0, j= 0; j < N; ++j )
-            g[i][j]= s[j];
+        grid g(N,std::vector<char>(N));
+        for ( i= 0, j= 0; j < N; ++j ) {
+            g[i][j] = s[j];
+            assert( s[j] == '.' or std::isdigit(s[j]) );
+        }
         for ( ;++i < N; )
-            for ( is >> s, j= 0; j < N; ++j )
-                g[i][j]= s[j];
+            for ( is >> s, j= 0; j < N; ++j ) {
+                g[i][j] = s[j];
+                assert( s[j] == '.' or std::isdigit(s[j]) );
+            }
         cboard c(g);
         for ( i= 0; i < N; ++i )
             for ( j= 0; j < N; ++j )
-                for ( k= i-1; k <= i+1; ++k )
-                    for ( t= j-1; t <= j+1; ++t )
-                        if ( 0 <= k and k < N and 0 <= t and t < N )
-                            if ( abs(i-k)+abs(t-j) == 1 )
-                                if ( c.xchg(i,j,k,t) ) {
-                                    auto z= c;
-                                    if ( z.perform_reductions().is_empty() )
+                for ( k= i-1; k <= i+1 and k < N; ++k )
+                    for ( t= j-1; t <= j+1 and t < N; ++t )
+                        if ( 0 <= k and 0 <= t )
+                            if ( abs(i-k)+abs(t-j) == 1 ) {
+                                auto z = c;
+                                puts("Checking");
+                                if (z.xchg(i, j, k, t)) {
+                                    puts("Perform reductions");
+                                    if (z.perform_reductions().is_empty())
                                         goto GOOD;
+                                    else puts("bad news");
+                                    puts("End reductions");
                                 }
+                                puts("Done checking");
+                            }
         os << "No" << '\n';
         continue ;
         GOOD: os << "Yes" << '\n';
