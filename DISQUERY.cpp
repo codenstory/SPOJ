@@ -1,8 +1,10 @@
 /**
  * DISQUERY
+ * TOPIC: LCA, path min queries
+ * status:
  */
 #include <bits/stdc++.h>
-#define N (1<<17)
+#define N (100007)
 #define MAXE (N*2)
 
 class tree {
@@ -78,10 +80,11 @@ class tree {
         for ( x= 0; x < n; seen[x++]= false ) ;
         calc_ladder_length(0);
         std::queue<int> q{};
-        for ( x= 0; x < n; seen[x++]= false ) ;
+        for ( x= 0; x < n; seen[x++]= false ) {
+			assert( seen[x] );
+		}
         std::unordered_set<t_node> in_chain{};
         for ( ladders.clear(), seen[0]= true, q.push(0); not q.empty(); q.pop() ) {
-            auto X= q.front();
             x= q.front();
             std::vector<int> chain{};
             chain.push_back(x);
@@ -99,7 +102,7 @@ class tree {
             std::reverse(chain.begin(),chain.end());
             for ( y= chain.back(), k= chain.size(); k and y != 0; chain.push_back(p[y]), y= p[y], --k ) ;
             std::reverse(chain.begin(),chain.end());
-            for ( k= 0; k < chain.size() and chain[k] != X; ++k ) ;
+            for ( k= 0; k < chain.size() and chain[k] != q.front(); ++k ) ;
             assert( k < chain.size() );
             for ( ;k < chain.size(); pos[chain[k]]= k, ++k ) ;
             ladders.push_back(std::move(chain));
