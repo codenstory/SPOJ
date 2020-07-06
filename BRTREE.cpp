@@ -21,7 +21,7 @@ int main() {
             os << n-1 << '\n';
             continue ;
         }
-        if ( K <= 61 ) {
+        if ( K <= 43 ) {
             std::vector<i64> c[2];
             c[0].resize(K + 1, 0), c[1].resize(K + 1, 0);
             c[t = 0].front() = 1, w[t] = w[t ^ 1] = 0;
@@ -39,23 +39,27 @@ int main() {
             os << w[t] << '\n';
             nx: continue ;
         } else {
-            if ( n >= K ) {
+            if ( n >= 47 ) {
                 unsigned alpha = 0;
                 for (int year = 1; (1ull << alpha) <= M and year < n; ++year, ++alpha);
                 os << (1ul << (alpha)) - 1 << '\n';
             } else {
                 std::vector<i64> c[2];
-                c[0].resize(n + 1, 0), c[1].resize(n + 1, 0);
+                auto m= std::min(n+2,K+1);
+                c[0].resize(m, 0), c[1].resize(m, 0);
                 c[t = 0].front() = 1, w[t] = w[t ^ 1] = 0;
                 for (int year = 1; year < n and w[t] <= M; ++year) {
-                    t ^= 1, c[t][0] = std::accumulate(c[t ^ 1].begin(), c[t ^ 1].end(), 0ll);
-                    for (i = 1; i <= n; ++i)
+                    t ^= 1, c[t][0] = std::accumulate(c[t ^ 1].begin(), c[t ^ 1].begin()+std::min(K,m), 0ll);
+                    for (i = 1; i < m and i <= K-1; ++i)
                         c[t][i] = c[t^1][i-1];
-                    w[t] = w[t ^ 1] + std::accumulate(c[t ^ 1].begin(), c[t ^ 1].end(), 0ll);
-                    if ( w[t] > M ) {
-                        os << w[t] << '\n';
+                    if ( i == K )
+                        c[t][K]= c[t^1][K-1]+c[t^1][K];
+                    auto dw= std::accumulate(c[t ^ 1].begin(), c[t ^ 1].begin()+std::min(K+1,m), 0ll);
+                    if ( w[t^1] > M-dw ) {
+                        os << w[t^1]+dw << '\n';
                         goto nx2;
                     }
+                    w[t]= w[t^1]+dw;
                 }
                 os << w[t] << '\n';
                 nx2: continue ;
