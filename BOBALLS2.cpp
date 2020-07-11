@@ -1,5 +1,3 @@
-#include <utility>
-
 /*
  * BOBALLS2
  * TOPIC: maths, simulation
@@ -8,11 +6,11 @@
 #include <bits/stdc++.h>
 #define oo (1<<29)
 
-using location= std::pair<int,int>;
+using i64= std::int64_t;
+using location= std::pair<i64,i64>;
 const int dx[]= {1,-1,-1,1},
           dy[]= {1,1,-1,-1};
 using t_dir= int;
-using i64= std::int64_t;
 
 i64 m,n;
 std::vector<std::vector<std::pair<int,t_dir>>> ball2wall= {
@@ -29,13 +27,15 @@ std::vector<std::vector<std::pair<int,t_dir>>> ball2corner= {
 };
 
 struct line {
-    double x0,y0,X,Y;
+    i64 x0,y0,X,Y;
+    line() {}
+    line( i64 x0, i64 y0, i64 X, i64 Y ): x0(x0), y0(y0), X(X), Y(Y) {}
 };
 
 std::pair<double,double> operator * ( const line &a, const line &b ) {
     double det= a.X*(-b.Y)-a.Y*(-b.X),
            dt= (b.X-a.X)*(-b.Y)-(b.Y-a.Y)*(-b.X),
-           dtau= a.X*(b.Y-b.Y)-(b.X-a.X)*a.Y;
+           dtau= a.X*(b.Y-a.Y)-(b.X-a.X)*a.Y;
     if ( fabs(det) < 1e-7 )
         return {+oo,+oo};
     double t= dt/det, tau= dtau/det;
@@ -44,30 +44,30 @@ std::pair<double,double> operator * ( const line &a, const line &b ) {
 
 struct cell;
 line L[]= {
-        {.x0= 0,.y0= 0,.X= (double)n,.Y= 0},
-        {.x0= (double)n,.y0= 0,.X= 0,.Y= (double)m},
-        {.x0= (double)n,.y0= (double)m,.X= -(double)n, .Y= 0},
-        {.x0= 0, .y0= (double)m, .X= 0, .Y= -(double)m}
+        line(0,0,n,0),
+        line(n,0,0,m),
+        line(n,m,-n,0),
+        line(0,m,0,-m)
 };
 
 line C[]= {
-        {.x0= 0,.y0= 0,.X= 0,.Y= 0},
-        {.x0= (double)n,.y0= 0,.X= 0,.Y= 0},
-        {.x0= (double)n,.y0= (double)m,.X= 0, .Y= 0},
-        {.x0= 0, .y0= (double)m, .X= 0, .Y= 0}
+        line(0,0,0,0),
+        line(n,0,0,0),
+        line(n,m,0,0),
+        line(0,m,0,0)
 };
 
 double meeting_time( const line &, const line & ) ;
 
 struct cell {
     location pos;
-    t_dir direction;
+    t_dir direction= 0;
     line line_;
     void init() {
-        line_= line{.x0= (double)pos.first,
-                .y0= (double)pos.second,
-                .X= (double)dx[direction],
-                .Y= (double)dy[direction]};
+        line_= line(pos.first,
+                pos.second,
+                dx[direction],
+                dy[direction]);
     }
     const line &as_line() {
         return line_;
@@ -85,27 +85,36 @@ struct cell {
         return {pos.first+tau*dx[direction],pos.second+tau*dy[direction]};
     }
 
-    cell next() {
+    cell next(double &t) {
         double soonest= +oo;
         t_dir new_dir= -1;
         for ( const auto &vec: ball2wall[direction] ) {
             double tau= meeting_time(as_line(),L[vec.first]);
-            if ( tau < +oo )
-                if ( tau < soonest )
-                    soonest= tau, new_dir= vec.second;
+            if ( tau < soonest )
+                soonest= tau, new_dir= vec.second;
         }
         for ( const auto &vec: ball2corner[direction] ) {
             double tau= meeting_time(as_line(),C[vec.first]);
-            if ( tau < +oo )
-                if ( tau < soonest ) {
-                    soonest= tau, new_dir= vec.second;
-                }
+            if ( tau < soonest )
+               soonest= tau, new_dir= vec.second;
         }
         assert( soonest < +oo );
         assert( new_dir != -1 );
-        return cell(at_time(soonest),new_dir);
+        return cell(at_time(t= soonest),new_dir);
     }
 };
+
+bool operator < ( const cell &a, const cell &b ) {
+    if ( a.direction != b.direction )
+        return a.direction < b.direction;
+    return a.pos < b.pos;
+}
+
+bool operator == ( const cell &a, const cell &b ) {
+    return not(a < b) and not(b < a);
+}
+
+std::vector<std::vector<std::pair<double,cell>>> trajectory;
 
 double meeting_time( const line &k, const line &r ) {
     double f,s;
@@ -117,7 +126,34 @@ double meeting_time( const line &k, const line &r ) {
 }
 
 std::vector<cell> balls;
-std::vector<double> reqs;
+
+location location_at( double t, int idx ) {
+    double rem= t/trajectory[idx].back().first;
+    auto it= std::lower_bound(trajectory[idx].begin(),trajectory[idx].end(),std::make_pair(rem,cell({+oo,+oo},4)));
+    assert( it != trajectory[idx].end() );
+    if ( fabs(it->first-rem) < 1e-7 ) {
+    } else {
+        assert( it != trajectory[idx].begin() );
+        it--;
+    }
+    return it->second.at_time(rem-it->first);
+}
+
+void answer( double t, std::ostream &os ) {
+    std::vector<location> res{};
+    for ( int i= 0; i < balls.size(); ++i )
+        res.push_back(location_at(t,i));
+    std::sort(res.begin(),res.end());
+    for ( auto &v: res )
+        os << (int)(v.first) << ' ' << (int)(v.second) << '\n';
+}
+
+void answer_requests( const std::vector<double> &reqs, std::ostream &os ) {
+    for ( int i= 0; i < reqs.size(); ++i ) {
+        if ( i ) os << '\n';
+        answer(reqs[i],os);
+    }
+}
 
 int main() {
 #ifndef ONLINE_JUDGE
@@ -129,16 +165,37 @@ int main() {
         is >> numballs, balls.resize(numballs);
         for ( auto &v: balls ) {
             is >> v.pos.first >> v.pos.second;
+            std::cerr << v.pos.first << " " << v.pos.second << '\n';
             int xx,yy;
-            is >> xx >> yy;
+            is >> xx >> yy, v.direction= -1;
             for ( int i= 0; i < 4; ++i )
                 if ( xx == dx[i] and yy == dy[i] )
                     v.direction= i;
+            assert( v.direction != -1 );
             v.init();
         }
+        trajectory.resize(numballs);
+        for ( int i= 0; i < numballs; ++i ) {
+            trajectory[i].clear();
+            std::set<cell> seen{};
+            auto &v= trajectory[i];
+            double t= 0,tau;
+            auto curr= balls.front();
+            v.emplace_back(t,curr), seen.insert(curr);
+            for (;;) {
+                auto nc= curr.next(tau);
+                v.emplace_back(t+= tau,nc);
+                if ( seen.count(nc) )
+                    break ;
+                seen.insert(curr= nc);
+            }
+            assert( not trajectory[i].empty() );
+        }
+        std::vector<double> reqs;
         is >> qr, reqs.resize(qr);
         for ( auto &v: reqs )
             is >> v;
+        answer_requests(reqs,os);
     }
     return 0;
 }
