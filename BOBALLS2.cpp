@@ -34,8 +34,8 @@ struct line {
 
 std::pair<double,double> operator * ( const line &a, const line &b ) {
     double det= a.X*(-b.Y)-a.Y*(-b.X),
-           dt= (b.X-a.X)*(-b.Y)-(b.Y-a.Y)*(-b.X),
-           dtau= a.X*(b.Y-a.Y)-(b.X-a.X)*a.Y;
+           dt= (b.x0-a.x0)*(-b.Y)-(b.y0-a.y0)*(-b.X),
+           dtau= a.X*(b.y0-a.y0)-(b.x0-a.x0)*a.Y;
     if ( fabs(det) < 1e-7 )
         return {+oo,+oo};
     double t= dt/det, tau= dtau/det;
@@ -44,25 +44,26 @@ std::pair<double,double> operator * ( const line &a, const line &b ) {
 
 struct cell;
 line L[]= {
-        line(0,0,n,0),
         line(n,0,0,m),
         line(n,m,-n,0),
-        line(0,m,0,-m)
+        line(0,m,0,-m),
+        line(0,0,n,0)
 };
 
 line C[]= {
-        line(0,0,0,0),
-        line(n,0,0,0),
         line(n,m,0,0),
-        line(0,m,0,0)
+        line(0,m,0,0),
+        line(0,0,0,0),
+        line(n,0,0,0)
 };
 
 double meeting_time( const line &, const line & ) ;
+double hitting_time( const line &, const line & ) ;
 
 struct cell {
     location pos;
     t_dir direction= 0;
-    line line_;
+    line line_{+oo,+oo,+oo,+oo};
     void init() {
         line_= line(pos.first,
                 pos.second,
@@ -70,11 +71,11 @@ struct cell {
                 dy[direction]);
     }
     const line &as_line() {
+        assert( line_.X < +oo );
         return line_;
     }
 
     cell() {
-        init();
     }
 
     cell( location loc, t_dir dir ): pos(std::move(loc)), direction(dir) {
@@ -88,13 +89,14 @@ struct cell {
     cell next(double &t) {
         double soonest= +oo;
         t_dir new_dir= -1;
+        assert( 0 <= direction and direction <= 3 );
         for ( const auto &vec: ball2wall[direction] ) {
             double tau= meeting_time(as_line(),L[vec.first]);
             if ( tau < soonest )
                 soonest= tau, new_dir= vec.second;
         }
         for ( const auto &vec: ball2corner[direction] ) {
-            double tau= meeting_time(as_line(),C[vec.first]);
+            double tau= hitting_time(as_line(),C[vec.first]);
             if ( tau < soonest )
                soonest= tau, new_dir= vec.second;
         }
@@ -125,6 +127,15 @@ double meeting_time( const line &k, const line &r ) {
     return +oo;
 }
 
+double hitting_time( const line &k, const line &r ) {
+    double tx= (r.x0-k.x0+0.00)/k.X,
+           ty= (r.y0-k.y0+0.00)/k.Y;
+    if ( fabs(tx-ty) < 1e-7 and tx > 0 )
+        return tx;
+    return +oo;
+}
+
+
 std::vector<cell> balls;
 
 location location_at( double t, int idx ) {
@@ -148,7 +159,7 @@ void answer( double t, std::ostream &os ) {
         os << (int)(v.first) << ' ' << (int)(v.second) << '\n';
 }
 
-void answer_requests( const std::vector<double> &reqs, std::ostream &os ) {
+void answer_requests( const std::vector<int> &reqs, std::ostream &os ) {
     for ( int i= 0; i < reqs.size(); ++i ) {
         if ( i ) os << '\n';
         answer(reqs[i],os);
@@ -161,17 +172,21 @@ int main() {
 #endif
     std::istream &is = std::cin;
     std::ostream &os = std::cout;
-    for ( int numballs, qr; (is >> n >> m); ) {
-        is >> numballs, balls.resize(numballs);
+    for ( int numballs, qr; is >> n >> m; ) {
+        if ( not(is >> numballs) )
+            break ;
+        balls.resize(numballs);
         for ( auto &v: balls ) {
             is >> v.pos.first >> v.pos.second;
-            std::cerr << v.pos.first << " " << v.pos.second << '\n';
             int xx,yy;
             is >> xx >> yy, v.direction= -1;
             for ( int i= 0; i < 4; ++i )
-                if ( xx == dx[i] and yy == dy[i] )
-                    v.direction= i;
+                if (xx == dx[i] and yy == dy[i]) {
+                    v.direction = i;
+                    break ;
+                }
             assert( v.direction != -1 );
+            assert( dx[v.direction] == xx and dy[v.direction] == yy )    ;
             v.init();
         }
         trajectory.resize(numballs);
@@ -183,19 +198,22 @@ int main() {
             auto curr= balls.front();
             v.emplace_back(t,curr), seen.insert(curr);
             for (;;) {
+                std::cerr << "[A] Trajectory building..." << std::endl;
                 auto nc= curr.next(tau);
                 v.emplace_back(t+= tau,nc);
                 if ( seen.count(nc) )
                     break ;
                 seen.insert(curr= nc);
+                std::cerr << "Trajectory building..." << std::endl;
             }
             assert( not trajectory[i].empty() );
         }
-        std::vector<double> reqs;
+        std::vector<int> reqs;
         is >> qr, reqs.resize(qr);
         for ( auto &v: reqs )
             is >> v;
         answer_requests(reqs,os);
+        break ;
     }
     return 0;
 }
