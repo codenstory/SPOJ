@@ -1,10 +1,12 @@
 /**
  * CUBERT
- * TOPIC:
- * status:
+ * TOPIC: boost
+ * status: Accepted
  */
 #include <bits/stdc++.h>
 #include <boost/multiprecision/cpp_dec_float.hpp>
+#include <boost/multiprecision/cpp_int.hpp>
+using namespace boost::multiprecision;
 
 template <class T>
 T cbrt_2deriv_lambda(T x)
@@ -34,7 +36,11 @@ T show_cube_root(T value, std::ostream &os )
 { // Demonstrate by printing the root using all definitely significant digits.
     os.precision(std::numeric_limits<T>::digits10);
     T r = cbrt_2deriv_lambda(value);
-    os << r;
+    cpp_int num= cpp_int(r+1e-9);
+    T x= (T)(num);
+    if ( fabs(x*x*x-value) < 1e-11 )
+        os << r;
+    else os << r-(1e-11);
     return r;
 }
 
