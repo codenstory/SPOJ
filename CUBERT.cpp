@@ -19,7 +19,7 @@ T cbrt_2deriv_lambda(T x)
     T max = ldexp(2., exponent / 3);                      // Maximum possible value is twice our guess.
     const int digits = std::numeric_limits<T>::digits;  // Maximum possible binary digits accuracy for type T.
     // digits used to control how accurate to try to make the result.
-    int get_digits = static_cast<int>(digits * 0.4);    // Accuracy triples with each step, so stop when just
+    int get_digits = static_cast<int>(digits);    // Accuracy triples with each step, so stop when just
     // over one third of the digits are correct.
     boost::uintmax_t maxit = 20;
     T result = halley_iterate(
@@ -48,11 +48,11 @@ int main() {
     using namespace boost::multiprecision;
     int ts,i,j,k,t;
     using mf= cpp_dec_float_100;
+    //using mf= mpfr_float_500;
     for ( is >> ts; ts--; ) {
         mf x[2];
-        std::string s;
-        is >> s;
-        auto R= mf(s.c_str());
+        mf R;
+        is >> R;
         /*
         x[t= 0]= mf("1.00"), x[t^1]= mf("0.00");
         while ( fabs(x[1]-x[0]) > 1e-13 ) {
