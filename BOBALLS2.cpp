@@ -136,14 +136,18 @@ std::vector<cell> balls;
 std::vector<std::vector<std::pair<int,int>>> adj[2];
 std::stack<int> st{};
 int scc[DIRS*(N+N)],mark,seen[DIRS*(N+N)],yes;
+i64 period[DIRS*(N+N)];
 
 location location_at_( i64 t, int x ) {
     assert( not adj[0][x].empty() );
     auto y= adj[0][x].front().first;
     auto w= adj[0][x].front().second;
-    if ( w >= t )
-        return id2cell[x].at_time(t);
-    return location_at_(t-w,y);
+    if ( period[scc[x]] )
+        t%= period[scc[x]];
+    while ( w < t ) {
+       t = t - w, x = y, y = adj[0][x].front().first, w = adj[0][x].front().second;
+    }
+    return id2cell[x].at_time(t);
 }
 
 location location_at( i64 t, cell &c ) {
@@ -173,15 +177,23 @@ void answer_requests( const std::vector<i64> &reqs, std::ostream &os ) {
 }
 
 void dfs( int x, int t ) {
-    assert( seen[x] != yes );
-    seen[x]= yes;
-    for ( auto &pr: adj[t][x] ) {
-        if ( seen[pr.first] != yes )
-            dfs(pr.first,t);
+    std::stack<std::pair<int,bool>> s{};
+    s.push({x,false});
+    int y;
+    bool done;
+    for ( seen[x]= yes; not s.empty(); ) {
+        std::tie(y,done)= s.top(); s.pop();
+        if ( done ) {
+            if ( t )
+                st.push(y);
+            else scc[y]= mark;
+        }
+        else {
+            if ( adj[t][y].empty() ) continue ;
+            if ( seen[adj[t][y].front().first] != yes )
+                s.push({y,true}), s.push({adj[t][y].front().first,false}), seen[adj[t][y].front().first]= yes;
+        }
     }
-    if ( t )
-        st.push(x);
-    else scc[x]= mark;
 }
 
 size_t num_nodes() {
@@ -207,6 +219,14 @@ void precalc_graph() {
     for ( i64 x= 0; x <= n; x+= n )
         for ( i64 y= 0; y <= m; ++y )
             for ( t_dir t= 0; t < DIRS; ++t ) {
+                if ( x == 0 and y == 0 and (t == 1 or t == 3) )
+                    continue ;
+                if ( x == 0 and y == m and (t == 0 or t == 2) )
+                    continue ;
+                if ( x == n and y == m and (t == 1 or t == 3) )
+                    continue ;
+                if ( x == n and y == 0 and (t == 0 or t == 2) )
+                    continue ;
                 cell c({x,y},t);
                 if ( not cell2id.count(c) ) {
                     auto V= num_nodes();
@@ -217,6 +237,14 @@ void precalc_graph() {
     for ( i64 y= 0; y <= m; y+= m )
         for ( i64 x= 0; x <= n; ++x )
             for ( t_dir t= 0; t < DIRS; ++t ) {
+                if ( x == 0 and y == 0 and (t == 1 or t == 3) )
+                    continue ;
+                if ( x == 0 and y == m and (t == 0 or t == 2) )
+                    continue ;
+                if ( x == n and y == m and (t == 1 or t == 3) )
+                    continue ;
+                if ( x == n and y == 0 and (t == 0 or t == 2) )
+                    continue ;
                 cell c({x,y},t);
                 if ( not cell2id.count(c) ) {
                     auto V= num_nodes();
@@ -244,6 +272,23 @@ void precalc_graph() {
         if ( seen[st.top()] != yes )
             ++mark, dfs(st.top(),0);
     std::cerr << "done calculating SCC" << std::endl;
+
+    ++yes;
+    for ( int x= 0; x < num_nodes(); ++x ) {
+        if ( seen[scc[x]] == yes )
+            continue ;
+        period[scc[x]]= 0;
+        seen[scc[x]]= yes;
+        if ( scc[adj[0][x].front().first] != scc[x] ) {
+            continue ;
+        }
+        auto &v= period[scc[x]];
+        v+= adj[0][x].front().second;
+        for ( int y= adj[0][x].front().first, z= x; y != z; ) {
+            v+= adj[0][y].front().second, y= adj[0][y].front().first;
+        }
+    }
+    std::cerr << "Computing periods: done" << std::endl;
 }
 
 int main() {
