@@ -5,14 +5,12 @@
  */
 #include <bits/stdc++.h>
 #define oo (1<<29)
-
+#define DIRS 4
 using i64= std::int64_t;
 using location= std::pair<i64,i64>;
 const i64 dx[]= {1,-1,-1,1},
           dy[]= {1,1,-1,-1};
 using t_dir= int;
-
-i64 m,n;
 std::vector<std::vector<std::pair<int,t_dir>>> ball2wall= {
         {{0,1},{1,3}},//1,3
         {{1,2},{2,0}},//2,0
@@ -43,6 +41,7 @@ std::pair<double,double> operator * ( const line &a, const line &b ) {
     return {t,tau};
 }
 
+i64 m,n;
 struct cell;
 std::vector<line> L,C;
 
@@ -59,9 +58,8 @@ struct cell {
                 dx[direction],
                 dy[direction]);
     }
-    const line &as_line() {
+    const line &as_line() const {
         assert( line_.X < +oo );
-        init();
         return line_;
     }
 
@@ -72,11 +70,11 @@ struct cell {
         init();
     }
 
-    location at_time( double tau ) {
+    location at_time( double tau ) const {
         return {pos.first+tau*dx[direction],pos.second+tau*dy[direction]};
     }
 
-    cell next(double &t) {
+    cell next(double &t) const {
         double soonest= +oo;
         t_dir new_dir= -1;
         assert( 0 <= direction and direction <= 3 );
@@ -105,6 +103,8 @@ bool operator < ( const cell &a, const cell &b ) {
 bool operator == ( const cell &a, const cell &b ) {
     return not(a < b) and not(b < a);
 }
+
+std::map<cell,int> cell2id;
 
 std::vector<std::vector<std::pair<i64,cell>>> trajectory, pre, periodic;
 std::vector<i64> preperiod, period;
@@ -172,6 +172,11 @@ void answer_requests( const std::vector<i64> &reqs, std::ostream &os ) {
     }
 }
 
+std::vector<std::vector<std::pair<int,int>>> adj;
+size_t num_nodes() {
+    return cell2id.size();
+}
+
 int main() {
 #ifndef ONLINE_JUDGE
     freopen("input.txt", "r", stdin);
@@ -193,6 +198,32 @@ int main() {
             line(0,0,0,0),
             line(n,0,0,0)
         };
+        cell2id.clear();
+        for ( i64 x= 0; x <= n; x+= n )
+            for ( i64 y= 0; y <= m; ++y )
+                for ( t_dir t= 0; t < DIRS; ++t ) {
+                    cell c({x,y},t);
+                    if ( not cell2id.count(c) ) {
+                        auto V= num_nodes();
+                        cell2id[c]= V;
+                    }
+                }
+        for ( i64 y= 0; y <= m; y+= n )
+            for ( i64 x= 0; x <= n; ++x )
+                for ( t_dir t= 0; t < DIRS; ++t ) {
+                    cell c({x,y},t);
+                    if ( not cell2id.count(c) ) {
+                        auto V= num_nodes();
+                        cell2id[c]= V;
+                    }
+                }
+        adj.resize(num_nodes(),std::vector<std::pair<int,int>>{});
+        for ( auto &[k,v]: cell2id ) {
+            double t;
+            auto nx= k.next(t);
+            auto fr= v, to= cell2id[nx];
+            adj[fr].push_back(std::make_pair(to,(int)t));
+        }
         balls.resize(numballs);
         for ( auto &v: balls ) {
             is >> v.pos.first >> v.pos.second;
@@ -236,7 +267,7 @@ int main() {
             assert( not pre[i].empty() );
             assert( not periodic[i].empty() );
             assert( periodic[i].back().first == period[i] );
-            std::cerr << "[" << n << "," << m << "] ";
+            //std::cerr << "[" << n << "," << m << "] ";
             std::cerr << balls[i].pos.first << ", " << balls[i].pos.second << ": " << period[i] << std::endl;
         }
         std::vector<i64> reqs;
