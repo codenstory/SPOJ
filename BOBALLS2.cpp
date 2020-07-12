@@ -72,7 +72,7 @@ struct cell {
         init();
     }
 
-    location at_time( i64 tau ) {
+    location at_time( double tau ) {
         return {pos.first+tau*dx[direction],pos.second+tau*dy[direction]};
     }
 
@@ -236,6 +236,8 @@ int main() {
             assert( not pre[i].empty() );
             assert( not periodic[i].empty() );
             assert( periodic[i].back().first == period[i] );
+            std::cerr << "[" << n << "," << m << "] ";
+            std::cerr << balls[i].pos.first << ", " << balls[i].pos.second << ": " << period[i] << std::endl;
         }
         std::vector<i64> reqs;
         is >> qr, reqs.resize(qr);
