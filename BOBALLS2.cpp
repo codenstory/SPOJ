@@ -72,7 +72,7 @@ struct cell {
         init();
     }
 
-    location at_time( double tau ) {
+    location at_time( i64 tau ) {
         return {pos.first+tau*dx[direction],pos.second+tau*dy[direction]};
     }
 
@@ -106,7 +106,7 @@ bool operator == ( const cell &a, const cell &b ) {
     return not(a < b) and not(b < a);
 }
 
-std::vector<std::vector<std::pair<i64,cell>>> trajectory;
+std::vector<std::vector<std::pair<i64,cell>>> trajectory, pre, periodic;
 std::vector<i64> preperiod, period;
 
 double meeting_time( const line &k, const line &r ) {
@@ -126,17 +126,29 @@ double hitting_time( const line &k, const line &r ) {
     return +oo;
 }
 
-
 std::vector<cell> balls;
 
 location location_at( i64 t, int idx ) {
-    i64 rem= t%((i64)trajectory[idx].back().first);
-    auto it= std::lower_bound(trajectory[idx].begin(),trajectory[idx].end(),std::make_pair(rem,cell({+oo,+oo},3)));
-    assert( it != trajectory[idx].end() );
-    if ( fabs(it->first-rem) < 1e-7 ) {
+
+    if ( t <= preperiod[idx] ) {
+        auto it= std::lower_bound(pre[idx].begin(),pre[idx].end(),std::make_pair(t,cell({+oo,+oo},3)));
+        if ( it->first == t ) {
+            return it->second.pos;
+        } else {
+            assert( it != pre[idx].begin() );
+            assert( it->first > t );
+            it--;
+        }
+        return it->second.at_time(t-it->first);
+    }
+
+    i64 rem= (t-preperiod[idx])%period[idx];
+    auto it= std::lower_bound(periodic[idx].begin(),periodic[idx].end(),std::make_pair(rem,cell({+oo,+oo},3)));
+    assert( it != periodic[idx].end() );
+    if ( it->first == rem ) {
         return it->second.pos;
     } else {
-        assert( it != trajectory[idx].begin() );
+        assert( it != periodic[idx].begin() );
         assert( it->first > rem );
         it--;
     }
@@ -144,7 +156,8 @@ location location_at( i64 t, int idx ) {
 }
 
 void answer( i64 t, std::ostream &os ) {
-    std::vector<location> res{};
+    std::vector<location> res;
+    res.reserve(balls.size());
     for ( int i= 0; i < balls.size(); ++i )
         res.push_back(location_at(t,i));
     std::sort(res.begin(),res.end());
@@ -191,35 +204,44 @@ int main() {
                     break ;
                 }
             assert( v.direction != -1 );
-            assert( dx[v.direction] == xx and dy[v.direction] == yy )    ;
+            assert( dx[v.direction] == xx and dy[v.direction] == yy );
             v.init();
         }
         trajectory.resize(numballs);
         period.resize(numballs),  preperiod.resize(numballs);
-        for ( int i= 0; i < numballs; ++i ) {
+        periodic.resize(numballs), pre.resize(numballs);
+        for ( int j,i= 0; i < numballs; ++i ) {
             trajectory[i].clear();
             std::map<cell,i64> seen{};
             auto &v= trajectory[i];
             double t= 0,tau;
-            auto curr= balls.front();
-            v.push_back({(i64)t,curr}), seen[curr]= (i64)t;
+            auto curr= balls[i];
+            v.emplace_back((i64)t,curr), seen[curr]= (i64)t;
             for (;;) {
                 auto nc= curr.next(tau);
-                v.push_back({(i64)(t+= tau),nc});
+                v.emplace_back((i64)(t+= tau),nc);
                 if ( seen.count(curr= nc) )
                     break ;
                 seen[curr]= (i64)t;
             }
             preperiod[i]= seen[curr], period[i]= (i64)t-preperiod[i];
             assert( not trajectory[i].empty() );
+            pre[i].clear(), periodic[i].clear();
+            pre[i].push_back(trajectory[i].front());
+            for ( j= 1; j < trajectory[i].size() and not(trajectory[i][j].second == curr); ++j )
+                pre[i].push_back(trajectory[i][j]);
+            pre[i].push_back(trajectory[i][j++]);
+            for ( --j; j < trajectory[i].size(); ++j )
+                periodic[i].push_back({trajectory[i][j].first-preperiod[i],trajectory[i][j].second});
+            assert( not pre[i].empty() );
+            assert( not periodic[i].empty() );
+            assert( periodic[i].back().first == period[i] );
         }
         std::vector<i64> reqs;
         is >> qr, reqs.resize(qr);
         for ( auto &v: reqs )
             is >> v;
         answer_requests(reqs,os);
-        break ;
     }
     return 0;
 }
-    
