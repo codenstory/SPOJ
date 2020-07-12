@@ -8,7 +8,7 @@
 
 using i64= std::int64_t;
 using location= std::pair<i64,i64>;
-const int dx[]= {1,-1,-1,1},
+const i64 dx[]= {1,-1,-1,1},
           dy[]= {1,1,-1,-1};
 using t_dir= int;
 
@@ -36,26 +36,15 @@ std::pair<double,double> operator * ( const line &a, const line &b ) {
     double det= a.X*(-b.Y)-a.Y*(-b.X),
            dt= (b.x0-a.x0)*(-b.Y)-(b.y0-a.y0)*(-b.X),
            dtau= a.X*(b.y0-a.y0)-(b.x0-a.x0)*a.Y;
-    if ( fabs(det) < 1e-7 )
-        return {+oo,+oo};
+    if ( fabs(det) < 1e-7 ) {
+        return {+oo, +oo};
+    }
     double t= dt/det, tau= dtau/det;
     return {t,tau};
 }
 
 struct cell;
-line L[]= {
-        line(n,0,0,m),
-        line(n,m,-n,0),
-        line(0,m,0,-m),
-        line(0,0,n,0)
-};
-
-line C[]= {
-        line(n,m,0,0),
-        line(0,m,0,0),
-        line(0,0,0,0),
-        line(n,0,0,0)
-};
+std::vector<line> L,C;
 
 double meeting_time( const line &, const line & ) ;
 double hitting_time( const line &, const line & ) ;
@@ -72,6 +61,7 @@ struct cell {
     }
     const line &as_line() {
         assert( line_.X < +oo );
+        init();
         return line_;
     }
 
@@ -97,7 +87,7 @@ struct cell {
         }
         for ( const auto &vec: ball2corner[direction] ) {
             double tau= hitting_time(as_line(),C[vec.first]);
-            if ( tau < soonest )
+            if ( tau <= soonest )
                soonest= tau, new_dir= vec.second;
         }
         assert( soonest < +oo );
@@ -116,7 +106,8 @@ bool operator == ( const cell &a, const cell &b ) {
     return not(a < b) and not(b < a);
 }
 
-std::vector<std::vector<std::pair<double,cell>>> trajectory;
+std::vector<std::vector<std::pair<i64,cell>>> trajectory;
+std::vector<i64> preperiod, period;
 
 double meeting_time( const line &k, const line &r ) {
     double f,s;
@@ -138,19 +129,21 @@ double hitting_time( const line &k, const line &r ) {
 
 std::vector<cell> balls;
 
-location location_at( double t, int idx ) {
-    double rem= t/trajectory[idx].back().first;
-    auto it= std::lower_bound(trajectory[idx].begin(),trajectory[idx].end(),std::make_pair(rem,cell({+oo,+oo},4)));
+location location_at( i64 t, int idx ) {
+    i64 rem= t%((i64)trajectory[idx].back().first);
+    auto it= std::lower_bound(trajectory[idx].begin(),trajectory[idx].end(),std::make_pair(rem,cell({+oo,+oo},3)));
     assert( it != trajectory[idx].end() );
     if ( fabs(it->first-rem) < 1e-7 ) {
+        return it->second.pos;
     } else {
         assert( it != trajectory[idx].begin() );
+        assert( it->first > rem );
         it--;
     }
     return it->second.at_time(rem-it->first);
 }
 
-void answer( double t, std::ostream &os ) {
+void answer( i64 t, std::ostream &os ) {
     std::vector<location> res{};
     for ( int i= 0; i < balls.size(); ++i )
         res.push_back(location_at(t,i));
@@ -159,7 +152,7 @@ void answer( double t, std::ostream &os ) {
         os << (int)(v.first) << ' ' << (int)(v.second) << '\n';
 }
 
-void answer_requests( const std::vector<int> &reqs, std::ostream &os ) {
+void answer_requests( const std::vector<i64> &reqs, std::ostream &os ) {
     for ( int i= 0; i < reqs.size(); ++i ) {
         if ( i ) os << '\n';
         answer(reqs[i],os);
@@ -175,6 +168,18 @@ int main() {
     for ( int numballs, qr; is >> n >> m; ) {
         if ( not(is >> numballs) )
             break ;
+        L= {
+            line(n,0,0,m),
+            line(n,m,-n,0),
+            line(0,m,0,-m),
+            line(0,0,n,0)
+        };
+        C= {
+            line(n,m,0,0),
+            line(0,m,0,0),
+            line(0,0,0,0),
+            line(n,0,0,0)
+        };
         balls.resize(numballs);
         for ( auto &v: balls ) {
             is >> v.pos.first >> v.pos.second;
@@ -190,25 +195,25 @@ int main() {
             v.init();
         }
         trajectory.resize(numballs);
+        period.resize(numballs),  preperiod.resize(numballs);
         for ( int i= 0; i < numballs; ++i ) {
             trajectory[i].clear();
-            std::set<cell> seen{};
+            std::map<cell,i64> seen{};
             auto &v= trajectory[i];
             double t= 0,tau;
             auto curr= balls.front();
-            v.emplace_back(t,curr), seen.insert(curr);
+            v.push_back({(i64)t,curr}), seen[curr]= (i64)t;
             for (;;) {
-                std::cerr << "[A] Trajectory building..." << std::endl;
                 auto nc= curr.next(tau);
-                v.emplace_back(t+= tau,nc);
-                if ( seen.count(nc) )
+                v.push_back({(i64)(t+= tau),nc});
+                if ( seen.count(curr= nc) )
                     break ;
-                seen.insert(curr= nc);
-                std::cerr << "Trajectory building..." << std::endl;
+                seen[curr]= (i64)t;
             }
+            preperiod[i]= seen[curr], period[i]= (i64)t-preperiod[i];
             assert( not trajectory[i].empty() );
         }
-        std::vector<int> reqs;
+        std::vector<i64> reqs;
         is >> qr, reqs.resize(qr);
         for ( auto &v: reqs )
             is >> v;
