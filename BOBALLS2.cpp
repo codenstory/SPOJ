@@ -6,6 +6,7 @@
 #include <bits/stdc++.h>
 #define oo (1<<29)
 #define DIRS 4
+#define N 5007
 using i64= std::int64_t;
 using location= std::pair<i64,i64>;
 const i64 dx[]= {1,-1,-1,1},
@@ -101,13 +102,18 @@ bool operator < ( const cell &a, const cell &b ) {
 }
 
 bool operator == ( const cell &a, const cell &b ) {
-    return not(a < b) and not(b < a);
+    return a.direction == b.direction and a.pos == b.pos;
 }
 
-std::map<cell,int> cell2id;
+template<>
+struct std::hash<cell> {
+    std::size_t operator() ( const cell &c ) const {
+        return std::hash<i64>()(c.pos.first)^std::hash<i64>()(c.pos.second)^std::hash<int>()(c.direction);
+    }
+};
 
-std::vector<std::vector<std::pair<i64,cell>>> trajectory, pre, periodic;
-std::vector<i64> preperiod, period;
+std::unordered_map<cell,int> cell2id;
+std::unordered_map<int,cell> id2cell;
 
 double meeting_time( const line &k, const line &r ) {
     double f,s;
@@ -127,39 +133,33 @@ double hitting_time( const line &k, const line &r ) {
 }
 
 std::vector<cell> balls;
+std::vector<std::vector<std::pair<int,int>>> adj[2];
+std::stack<int> st{};
+int scc[DIRS*(N+N)],mark,seen[DIRS*(N+N)],yes;
 
-location location_at( i64 t, int idx ) {
+location location_at_( i64 t, int x ) {
+    assert( not adj[0][x].empty() );
+    auto y= adj[0][x].front().first;
+    auto w= adj[0][x].front().second;
+    if ( w >= t )
+        return id2cell[x].at_time(t);
+    return location_at_(t-w,y);
+}
 
-    if ( t <= preperiod[idx] ) {
-        auto it= std::lower_bound(pre[idx].begin(),pre[idx].end(),std::make_pair(t,cell({+oo,+oo},3)));
-        if ( it->first == t ) {
-            return it->second.pos;
-        } else {
-            assert( it != pre[idx].begin() );
-            assert( it->first > t );
-            it--;
-        }
-        return it->second.at_time(t-it->first);
-    }
-
-    i64 rem= (t-preperiod[idx])%period[idx];
-    auto it= std::lower_bound(periodic[idx].begin(),periodic[idx].end(),std::make_pair(rem,cell({+oo,+oo},3)));
-    assert( it != periodic[idx].end() );
-    if ( it->first == rem ) {
-        return it->second.pos;
-    } else {
-        assert( it != periodic[idx].begin() );
-        assert( it->first > rem );
-        it--;
-    }
-    return it->second.at_time(rem-it->first);
+location location_at( i64 t, cell &c ) {
+    double tau= 0;
+    auto nx= c.next(tau);
+    assert( cell2id.count(nx) );
+    if ( t <= tau )
+        return c.at_time(t);
+    return location_at_(t-(int)(tau+1e-9),cell2id[nx]);
 }
 
 void answer( i64 t, std::ostream &os ) {
     std::vector<location> res;
     res.reserve(balls.size());
     for ( int i= 0; i < balls.size(); ++i )
-        res.push_back(location_at(t,i));
+        res.push_back(location_at(t,balls[i]));
     std::sort(res.begin(),res.end());
     for ( auto &v: res )
         os << (int)(v.first) << ' ' << (int)(v.second) << '\n';
@@ -172,9 +172,78 @@ void answer_requests( const std::vector<i64> &reqs, std::ostream &os ) {
     }
 }
 
-std::vector<std::vector<std::pair<int,int>>> adj;
+void dfs( int x, int t ) {
+    assert( seen[x] != yes );
+    seen[x]= yes;
+    for ( auto &pr: adj[t][x] ) {
+        if ( seen[pr.first] != yes )
+            dfs(pr.first,t);
+    }
+    if ( t )
+        st.push(x);
+    else scc[x]= mark;
+}
+
 size_t num_nodes() {
     return cell2id.size();
+}
+
+void precalc_graph() {
+    L= {
+        line(n,0,0,m),
+        line(n,m,-n,0),
+        line(0,m,0,-m),
+        line(0,0,n,0)
+    };
+    C= {
+        line(n,m,0,0),
+        line(0,m,0,0),
+        line(0,0,0,0),
+        line(n,0,0,0)
+    };
+    cell2id.clear(), id2cell.clear();
+    std::cerr << "calculating boundary" << std::endl;
+    std::cerr << m << " " << n << std::endl;
+    for ( i64 x= 0; x <= n; x+= n )
+        for ( i64 y= 0; y <= m; ++y )
+            for ( t_dir t= 0; t < DIRS; ++t ) {
+                cell c({x,y},t);
+                if ( not cell2id.count(c) ) {
+                    auto V= num_nodes();
+                    id2cell[cell2id[c]= V]= c;
+                }
+            }
+    std::cerr << "done part 1 calculating boundary" << std::endl;
+    for ( i64 y= 0; y <= m; y+= m )
+        for ( i64 x= 0; x <= n; ++x )
+            for ( t_dir t= 0; t < DIRS; ++t ) {
+                cell c({x,y},t);
+                if ( not cell2id.count(c) ) {
+                    auto V= num_nodes();
+                    id2cell[cell2id[c]= V]= c;
+                }
+            }
+    std::cerr << "done calculating boundary" << std::endl;
+    for ( int t= 0; t <= 1; ++t )
+        adj[t].resize(num_nodes(),std::vector<std::pair<int,int>>{});
+    for ( auto &[k,v]: cell2id ) {
+        double t;
+        auto nx= k.next(t);
+        assert( cell2id.count(nx) );
+        auto fr= v, to= cell2id[nx];
+        adj[0][fr].push_back(std::make_pair(to,(int)t));
+        adj[1][to].push_back(std::make_pair(fr,(int)t));
+    }
+    std::cerr << "calculating SCC" << std::endl;
+    ++yes;
+    for ( int x= 0; x < num_nodes(); ++x )
+        if ( seen[x] != yes )
+            dfs(x,1);
+    mark= -1, ++yes;
+    for ( ;not st.empty(); st.pop() )
+        if ( seen[st.top()] != yes )
+            ++mark, dfs(st.top(),0);
+    std::cerr << "done calculating SCC" << std::endl;
 }
 
 int main() {
@@ -186,44 +255,8 @@ int main() {
     for ( int numballs, qr; is >> n >> m; ) {
         if ( not(is >> numballs) )
             break ;
-        L= {
-            line(n,0,0,m),
-            line(n,m,-n,0),
-            line(0,m,0,-m),
-            line(0,0,n,0)
-        };
-        C= {
-            line(n,m,0,0),
-            line(0,m,0,0),
-            line(0,0,0,0),
-            line(n,0,0,0)
-        };
-        cell2id.clear();
-        for ( i64 x= 0; x <= n; x+= n )
-            for ( i64 y= 0; y <= m; ++y )
-                for ( t_dir t= 0; t < DIRS; ++t ) {
-                    cell c({x,y},t);
-                    if ( not cell2id.count(c) ) {
-                        auto V= num_nodes();
-                        cell2id[c]= V;
-                    }
-                }
-        for ( i64 y= 0; y <= m; y+= n )
-            for ( i64 x= 0; x <= n; ++x )
-                for ( t_dir t= 0; t < DIRS; ++t ) {
-                    cell c({x,y},t);
-                    if ( not cell2id.count(c) ) {
-                        auto V= num_nodes();
-                        cell2id[c]= V;
-                    }
-                }
-        adj.resize(num_nodes(),std::vector<std::pair<int,int>>{});
-        for ( auto &[k,v]: cell2id ) {
-            double t;
-            auto nx= k.next(t);
-            auto fr= v, to= cell2id[nx];
-            adj[fr].push_back(std::make_pair(to,(int)t));
-        }
+        precalc_graph();
+        std::cerr << "Done precalculating graph" << std::endl;
         balls.resize(numballs);
         for ( auto &v: balls ) {
             is >> v.pos.first >> v.pos.second;
@@ -237,38 +270,6 @@ int main() {
             assert( v.direction != -1 );
             assert( dx[v.direction] == xx and dy[v.direction] == yy );
             v.init();
-        }
-        trajectory.resize(numballs);
-        period.resize(numballs),  preperiod.resize(numballs);
-        periodic.resize(numballs), pre.resize(numballs);
-        for ( int j,i= 0; i < numballs; ++i ) {
-            trajectory[i].clear();
-            std::map<cell,i64> seen{};
-            auto &v= trajectory[i];
-            double t= 0,tau;
-            auto curr= balls[i];
-            v.emplace_back((i64)t,curr), seen[curr]= (i64)t;
-            for (;;) {
-                auto nc= curr.next(tau);
-                v.emplace_back((i64)(t+= tau),nc);
-                if ( seen.count(curr= nc) )
-                    break ;
-                seen[curr]= (i64)t;
-            }
-            preperiod[i]= seen[curr], period[i]= (i64)t-preperiod[i];
-            assert( not trajectory[i].empty() );
-            pre[i].clear(), periodic[i].clear();
-            pre[i].push_back(trajectory[i].front());
-            for ( j= 1; j < trajectory[i].size() and not(trajectory[i][j].second == curr); ++j )
-                pre[i].push_back(trajectory[i][j]);
-            pre[i].push_back(trajectory[i][j++]);
-            for ( --j; j < trajectory[i].size(); ++j )
-                periodic[i].push_back({trajectory[i][j].first-preperiod[i],trajectory[i][j].second});
-            assert( not pre[i].empty() );
-            assert( not periodic[i].empty() );
-            assert( periodic[i].back().first == period[i] );
-            //std::cerr << "[" << n << "," << m << "] ";
-            std::cerr << balls[i].pos.first << ", " << balls[i].pos.second << ": " << period[i] << std::endl;
         }
         std::vector<i64> reqs;
         is >> qr, reqs.resize(qr);
