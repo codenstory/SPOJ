@@ -4,7 +4,7 @@
  */
 #include <bits/stdc++.h>
 using i64= std::int64_t;
-enum { NE, NW, SW, SE };
+enum { NE= 0, NW= 1, SW= 2, SE= 3 };
 
 int dx[]= {1,-1,-1,1},
     dy[]= {1,1,-1,-1};
@@ -16,13 +16,25 @@ using t_edge= std::pair<t_int,t_weight>;
 using t_aika= i64;
 using t_pos= int;
 
+bool operator == ( const t_node &a, const t_node &b ) {
+    return a == b;
+}
+
+template<>
+struct std::hash<t_node> {
+    size_t operator() ( const t_node &c ) const {
+        auto x= std::get<0>(c), y= std::get<1>(c), t= std::get<2>(c);
+        return std::hash<int>()(x)^std::hash<int>()(y)^std::hash<int>()(t);
+    }
+};
+
 class Solution {
 
-    std::map<t_node, t_int> node2id;
+    std::unordered_map<t_node, t_int> node2id;
     std::map<t_int,std::set<t_edge>> adj;
-    std::map<t_int,i64> period,pre_period;
-    std::map<t_int,t_int> P;
-    std::map<t_int,t_node> inv_map;
+    std::unordered_map<t_int,i64> period, distance_to;
+    std::map<t_int,t_int> head;
+    std::unordered_map<t_int,t_node> inv_map;
     std::vector<int> seen;
     int m,n,yes;
 
@@ -30,6 +42,7 @@ class Solution {
         if ( node2id.count(x) )
             return node2id[x];
         auto z= node2id.size();
+        assert( z < 8*(m+n)+7 );
         inv_map[z]= x;
         return node2id[x]= z;
     }
@@ -48,7 +61,7 @@ class Solution {
             assert( node2id.count(next_node) );
             return std::make_pair(next_node,0ll);
         } else {
-            t_aika good= 0, bad= (1<<29), mid;
+            t_aika good= 0, bad= std::max(m,n)+0x80, mid;
             for ( ;good+1 != bad; ) {
                 mid= (good+bad)>>1;
                 auto nx= x+dx[t]*mid, ny= y+dy[t]*mid;
@@ -65,43 +78,54 @@ class Solution {
             auto nx= next_(key);
             adj[val].insert({node2id[nx.first],nx.second});
         }
+        head.clear(), period.clear();
+    }
+
+    t_int nxt( t_int x ) {
+        return adj[x].begin()->first;
     }
 
     void preprocess_() {
-        seen.resize(n+m+7), std::fill(seen.begin(),seen.end(),0), yes= 0;
+        seen.resize(8*(n+m)+7), std::fill(seen.begin(),seen.end(),0), yes= 0;
         for ( auto &[key,val]: node2id ) {
-            seen[val]= ++yes, period[val]= pre_period[val]= 0;
-            auto x= val;
-            for ( x= adj[x].begin()->first; seen[x] != yes;
-            seen[x]= yes, x= adj[x].begin()->first ) ;
-            for ( auto y= val; y != x; ) {
-                pre_period[val]+= adj[y].begin()->second;
-                y= adj[y].begin()->first;
-            }
-            period[val]= adj[x].begin()->second, P[val]= x;
-            for ( auto y= adj[x].begin()->first; y != x; ) {
-                period[val]+= adj[y].begin()->second;
-                y= adj[y].begin()->first;
-            }
+            auto x= val, y= val;
+            if ( seen[x] == yes )
+                continue ;
+            std::vector<t_int> orbit;
+            seen[x]= yes, distance_to[x]= 0, orbit.push_back(x);
+            for ( y= nxt(x); y != x; seen[y]= yes, orbit.push_back(y), y= nxt(y) ) ;
+            for ( distance_to[y= nxt(x)]= period[x]= adj[x].begin()->second; y != x; )
+                period[x]+= adj[y].begin()->second, y= nxt(y), distance_to[y]= period[x];
+            for ( auto z: orbit )
+                head[z]= x;
         }
     }
 
 	std::pair<t_pos,t_pos> location_at_iterative( t_int v, t_aika t ) {
 		auto curr= v;
-		for ( ;t >= adj[curr].begin()->second; t-= adj[curr].begin()->second, curr= adj[curr].begin()->first ) ;
+		for (;t >= adj[curr].begin()->second; t-= adj[curr].begin()->second, curr= adj[curr].begin()->first ) ;
 		auto tr= inv_map[curr];
 		int direction= std::get<2>(tr);
 		return {std::get<0>(tr)+t*dx[direction],std::get<1>(tr)+t*dy[direction]};
 	}
 
-    std::pair<t_pos,t_pos> location_at( t_int v, t_pos t ) {
-		return location_at_iterative(P[v],t<pre_period[v]?t:(t-pre_period[v])%period[v]);
+    std::pair<t_pos,t_pos> location_at( t_int v, t_aika t ) {
+        auto x= head[v];
+        if ( t <= period[x]-distance_to[v] ) {
+            return location_at_iterative(v,t);
+        }
+        t-= (period[x]-distance_to[v]);
+        assert( t > 0 );
+        t%= period[x];
+        return location_at_iterative(x,t);
     }
 
 public:
 
     Solution( int m, int n ): m(m), n(n) {
         int i,j;
+        node2id.clear(), inv_map.clear();
+        assert( m >= 1 and  n >= 1 );
         for ( j= 0; j <= n; j+= n )
             for ( i= 1; i <= m-1; ++i ) {
                 for ( int t= NE; t <= SE; ++t ) 
@@ -125,13 +149,12 @@ public:
 
         build_graph();
         preprocess_();
-
     }
 
     std::pair<i64,i64> get_location_at( std::pair<i64,i64> pos, int direction, i64 tick ) {
         t_node v= std::make_tuple(pos.first,pos.second,direction);
         int x= std::get<0>(v), y= std::get<1>(v), t= std::get<2>(v);
-        i64 good= 0, bad= (1<<29), mid;
+        i64 good= 0, bad= std::max(m,n)+0x80, mid;
         for ( ;good+1 != bad; ) {
             mid= (good+bad)>>1;
             vc(x+dx[t]*mid,y+dy[t]*mid)?(good= mid):(bad= mid);
@@ -162,6 +185,8 @@ int main() {
         std::vector<t_node> balls(numballs);
         for ( auto &v: balls ) {
             is >> std::get<0>(v) >> std::get<1>(v);
+            assert( 0 <= std::get<0>(v) and std::get<0>(v) <= m );
+            assert( 0 <= std::get<1>(v) and std::get<1>(v) <= n );
 			std::get<2>(v)= -1;
             int xx,yy;
             is >> xx >> yy;
@@ -182,6 +207,7 @@ int main() {
             for ( int i= 0; i < numballs; ++i )
                 os << res[i].first << ' ' << res[i].second << '\n';
         }
+        break ;
     }
     return 0;
 }
