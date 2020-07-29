@@ -31,10 +31,10 @@ struct std::hash<t_node> {
 class Solution {
 
     std::unordered_map<t_node, t_int> node2id;
-    std::map<t_int,std::set<t_edge>> adj;
-    std::unordered_map<t_int,i64> period, distance_to;
+    std::unordered_map<t_int, t_node> inv_map;
     std::map<t_int,t_int> head;
-    std::unordered_map<t_int,t_node> inv_map;
+    std::map<t_int,std::set<t_edge>> adj;
+    std::unordered_map<t_int, t_aika> period, distance_to;
     std::vector<int> seen;
     int m,n,yes;
 
@@ -55,19 +55,21 @@ class Solution {
             t= std::get<2>(v);
         if ( not vc(x+dx[t],y+dy[t]) ) {
             int nt= (t+1)&3;
-            for ( ;nt != t and not vc(x+dx[nt],y+dy[nt]); ++nt, nt&= 3 ) ;
+            for ( ;not(nt != t and vc(x+dx[nt],y+dy[nt])); ++nt, nt&= 3 ) ;
             assert( nt != t );
             auto next_node= std::make_tuple(x,y,nt);
             assert( node2id.count(next_node) );
             return std::make_pair(next_node,0ll);
         } else {
             t_aika good= 0, bad= std::max(m,n)+0x80, mid;
+            assert( not vc(x+dx[t]*bad,y+dy[t]*bad) );
             for ( ;good+1 != bad; ) {
                 mid= (good+bad)>>1;
                 auto nx= x+dx[t]*mid, ny= y+dy[t]*mid;
                 vc(nx,ny)?(good= mid):(bad= mid);
             }
-            auto next_node= std::make_tuple(x+dx[t]*good,y+dy[t]*good,t);
+            assert( good >= 1 );
+            auto next_node= std::make_tuple(x+dx[t]*good, y+dy[t]*good, t);
             assert( node2id.count(next_node) );
             return std::make_pair(next_node,good);
         }
@@ -86,24 +88,27 @@ class Solution {
     }
 
     void preprocess_() {
-        seen.resize(8*(n+m)+7), std::fill(seen.begin(),seen.end(),0), yes= 0;
+        seen.resize(8*(n+m)+7), std::fill(seen.begin(),seen.end(),0), yes= 1;
+        std::cerr << "Starting" << std::endl;
         for ( auto &[key,val]: node2id ) {
             auto x= val, y= val;
-            if ( seen[x] == yes )
-                continue ;
+            if ( seen[x] == yes ) continue ;
             std::vector<t_int> orbit;
             seen[x]= yes, distance_to[x]= 0, orbit.push_back(x);
-            for ( y= nxt(x); y != x; seen[y]= yes, orbit.push_back(y), y= nxt(y) ) ;
+            for ( y= nxt(x); y != x and seen[y] != yes; seen[y]= yes, orbit.push_back(y), y= nxt(y) ) ;
+            assert( y == x );
             for ( distance_to[y= nxt(x)]= period[x]= adj[x].begin()->second; y != x; )
                 period[x]+= adj[y].begin()->second, y= nxt(y), distance_to[y]= period[x];
             for ( auto z: orbit )
                 head[z]= x;
         }
+        std::cerr << "Done" << std::endl;
     }
 
 	std::pair<t_pos,t_pos> location_at_iterative( t_int v, t_aika t ) {
 		auto curr= v;
-		for (;t >= adj[curr].begin()->second; t-= adj[curr].begin()->second, curr= adj[curr].begin()->first ) ;
+		for (;t >= adj[curr].begin()->second or adj[curr].begin()->second == 0; 
+				t-= adj[curr].begin()->second, curr= adj[curr].begin()->first ) ;
 		auto tr= inv_map[curr];
 		int direction= std::get<2>(tr);
 		return {std::get<0>(tr)+t*dx[direction],std::get<1>(tr)+t*dy[direction]};
@@ -155,6 +160,7 @@ public:
         t_node v= std::make_tuple(pos.first,pos.second,direction);
         int x= std::get<0>(v), y= std::get<1>(v), t= std::get<2>(v);
         i64 good= 0, bad= std::max(m,n)+0x80, mid;
+		assert( not vc(x+dx[t]*bad, y+dy[t]*bad) );
         for ( ;good+1 != bad; ) {
             mid= (good+bad)>>1;
             vc(x+dx[t]*mid,y+dy[t]*mid)?(good= mid):(bad= mid);
