@@ -43,6 +43,7 @@ class Solution {
             return node2id[x];
         auto z= node2id.size();
         assert( z < 8*(m+n)+7 );
+        assert( 0 <= std::get<2>(x) and std::get<2>(x) < 4 );
         inv_map[z]= x;
         return node2id[x]= z;
     }
@@ -54,9 +55,13 @@ class Solution {
             y= std::get<1>(v),
             t= std::get<2>(v);
         if ( not vc(x+dx[t],y+dy[t]) ) {
+            if ( (x == m and y == 0) or (x == m and y == n) or (x == 0 and y == n) or (x == 0 and y == 0) )
+                return std::make_pair(std::make_tuple(x,y,(t+2)&3),0);
             int nt= (t+1)&3;
-            for ( ;not(nt != t and vc(x+dx[nt],y+dy[nt])); ++nt, nt&= 3 ) ;
+            for ( ;not(nt != t and nt != ((t+2)&3) and vc(x+dx[nt],y+dy[nt])); ++nt, nt&= 3 ) ;
             assert( nt != t );
+            //std::cerr << "The next for (" << x << "," << y << "), t= " << t << " is ";
+            //std::cerr << "(" << x << "," << y << "), t= " << nt << std::endl;
             auto next_node= std::make_tuple(x,y,nt);
             assert( node2id.count(next_node) );
             return std::make_pair(next_node,0ll);
@@ -89,20 +94,20 @@ class Solution {
 
     void preprocess_() {
         seen.resize(8*(n+m)+7), std::fill(seen.begin(),seen.end(),0), yes= 1;
-        std::cerr << "Starting" << std::endl;
         for ( auto &[key,val]: node2id ) {
             auto x= val, y= val;
             if ( seen[x] == yes ) continue ;
             std::vector<t_int> orbit;
             seen[x]= yes, distance_to[x]= 0, orbit.push_back(x);
-            for ( y= nxt(x); y != x and seen[y] != yes; seen[y]= yes, orbit.push_back(y), y= nxt(y) ) ;
+            for ( y= nxt(x); y != x and seen[y] != yes; ) {
+                seen[y]= yes, orbit.push_back(y), y= nxt(y);
+            }
             assert( y == x );
             for ( distance_to[y= nxt(x)]= period[x]= adj[x].begin()->second; y != x; )
                 period[x]+= adj[y].begin()->second, y= nxt(y), distance_to[y]= period[x];
             for ( auto z: orbit )
                 head[z]= x;
         }
-        std::cerr << "Done" << std::endl;
     }
 
 	std::pair<t_pos,t_pos> location_at_iterative( t_int v, t_aika t ) {
@@ -165,7 +170,7 @@ public:
             mid= (good+bad)>>1;
             vc(x+dx[t]*mid,y+dy[t]*mid)?(good= mid):(bad= mid);
         }
-        if ( good <= tick ) {
+        if ( tick <= good ) {
             return {x+dx[t]*good,y+dy[t]*good};
         }
         t_node hitting_point= std::make_tuple(x+dx[t]*good,y+dy[t]*good,t);
