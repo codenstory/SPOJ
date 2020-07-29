@@ -1,10 +1,12 @@
 /**
  * BOBALLS2
  * TOPIC: simulation
+ * status: Accepted
  */
 #include <bits/stdc++.h>
 using i64= std::int64_t;
 enum { NE= 0, NW= 1, SW= 2, SE= 3 };
+#define MAXV (8*(5000+5000)+7)
 
 int dx[]= {1,-1,-1,1},
     dy[]= {1,1,-1,-1};
@@ -12,7 +14,7 @@ int dx[]= {1,-1,-1,1},
 using t_node= std::tuple<int, int, int>;
 using t_weight= i64;
 using t_int= int;
-using t_edge= std::pair<t_int,t_weight>;
+using t_edge= std::pair<t_int, t_weight>;
 using t_aika= i64;
 using t_pos= int;
 
@@ -31,10 +33,10 @@ struct std::hash<t_node> {
 class Solution {
 
     std::unordered_map<t_node, t_int> node2id;
-    std::unordered_map<t_int, t_node> inv_map;
-    std::map<t_int,t_int> head;
-    std::map<t_int,std::set<t_edge>> adj;
-    std::unordered_map<t_int, t_aika> period, distance_to;
+    t_node inv_map[MAXV];
+    t_int head[MAXV];
+    t_edge adj[MAXV];
+    t_aika period[MAXV], distance_to[MAXV];
     std::vector<int> seen;
     int m,n,yes;
 
@@ -83,13 +85,16 @@ class Solution {
     void build_graph() {
         for ( auto &[key,val]: node2id ) {
             auto nx= next_(key);
-            adj[val].insert({node2id[nx.first],nx.second});
+            adj[val]= {node2id[nx.first],nx.second};
         }
-        head.clear(), period.clear();
     }
 
     t_int nxt( t_int x ) {
-        return adj[x].begin()->first;
+        return adj[x].first;
+    }
+
+    i64 gcd( i64 x, i64 y ) {
+        return not y?x:gcd(y,x%y);
     }
 
     void preprocess_() {
@@ -103,23 +108,24 @@ class Solution {
                 seen[y]= yes, orbit.push_back(y), y= nxt(y);
             }
             assert( y == x );
-            for ( distance_to[y= nxt(x)]= period[x]= adj[x].begin()->second; y != x; )
-                period[x]+= adj[y].begin()->second, y= nxt(y), distance_to[y]= period[x];
+            for ( distance_to[y= nxt(x)]= period[x]= adj[x].second; y != x; )
+                period[x]+= adj[y].second, y= nxt(y), distance_to[y]= period[x];
             for ( auto z: orbit )
                 head[z]= x;
+            //assert( period[x] == (2*m)*(2*n)/gcd(2*m,2*n) );
         }
     }
 
-	std::pair<t_pos,t_pos> location_at_iterative( t_int v, t_aika t ) {
+	std::pair<i64,i64> location_at_iterative( t_int v, t_aika t ) {
 		auto curr= v;
-		for (;t >= adj[curr].begin()->second or adj[curr].begin()->second == 0; 
-				t-= adj[curr].begin()->second, curr= adj[curr].begin()->first ) ;
+		for (;t >= adj[curr].second or adj[curr].second == 0;
+				t-= adj[curr].second, curr= adj[curr].first ) ;
 		auto tr= inv_map[curr];
 		int direction= std::get<2>(tr);
 		return {std::get<0>(tr)+t*dx[direction],std::get<1>(tr)+t*dy[direction]};
 	}
 
-    std::pair<t_pos,t_pos> location_at( t_int v, t_aika t ) {
+    std::pair<i64,i64> location_at( t_int v, t_aika t ) {
         auto x= head[v];
         if ( t <= period[x]-distance_to[v] ) {
             return location_at_iterative(v,t);
@@ -134,7 +140,7 @@ public:
 
     Solution( int m, int n ): m(m), n(n) {
         int i,j;
-        node2id.clear(), inv_map.clear();
+        node2id.clear();
         assert( m >= 1 and  n >= 1 );
         for ( j= 0; j <= n; j+= n )
             for ( i= 1; i <= m-1; ++i ) {
@@ -157,14 +163,17 @@ public:
         insert(std::make_tuple(0,n,SE));
         insert(std::make_tuple(0,n,NW));
 
+        //std::cerr << "Building graph: start" << std::endl;
         build_graph();
+        //std::cerr << "Building graph: done" << std::endl;
         preprocess_();
+        //std::cerr << "Preprocess: done" << std::endl;
     }
 
-    std::pair<i64,i64> get_location_at( std::pair<i64,i64> pos, int direction, i64 tick ) {
+    std::pair<i64,i64> get_location_at( std::pair<i64,i64> pos, int direction, t_aika tick ) {
         t_node v= std::make_tuple(pos.first,pos.second,direction);
         int x= std::get<0>(v), y= std::get<1>(v), t= std::get<2>(v);
-        i64 good= 0, bad= std::max(m,n)+0x80, mid;
+        t_aika good= 0, bad= std::max(m,n)+0x80, mid;
 		assert( not vc(x+dx[t]*bad, y+dy[t]*bad) );
         for ( ;good+1 != bad; ) {
             mid= (good+bad)>>1;
@@ -181,40 +190,49 @@ public:
     }
 };
 
+i64 modulo( i64 x, i64 m ) {
+    if ( x >= 0 )
+        return (x%m);
+    auto A= ((-x)/m)*m+m;
+    for ( x+= A; x < 0; x += A ) ;
+    return x%m;
+}
+
+std::pair<int,int> balls[3001];
+int dxx[3001], dyy[3001];
+std::pair<i64,i64> res[3001];
+
 int main() {
+    std::ios_base::sync_with_stdio(false), std::cin.tie(nullptr);
 #ifndef ONLINE_JUDGE
     freopen("input.txt", "r", stdin);
 #endif
     std::istream &is= std::cin;
     std::ostream &os= std::cout;
-    for ( int ts= 0, m,n,numballs, qr; is >> m >> n; ) {
+    for ( int ts= 0, m,n,numballs, qr; is >> m >> n >> numballs; ) {
         if ( ++ts > 1 )
             os << '\n';
-        Solution s(m,n);
-        if ( not(is >> numballs) )
-            break ;
-        std::vector<t_node> balls(numballs);
-        for ( auto &v: balls ) {
-            is >> std::get<0>(v) >> std::get<1>(v);
-            assert( 0 <= std::get<0>(v) and std::get<0>(v) <= m );
-            assert( 0 <= std::get<1>(v) and std::get<1>(v) <= n );
-			std::get<2>(v)= -1;
-            int xx,yy;
-            is >> xx >> yy;
-            for ( int i= 0; i < 4; ++i )
-                if (xx == dx[i] and yy == dy[i]) {
-                    std::get<2>(v) = i;
-                    break ;
-                }
-			assert( std::get<2>(v) != -1 );
+        //Solution s(m,n);
+        int blocks= 0;
+        for ( int i= 0; i < numballs; ++i ) {
+            is >> balls[i].first >> balls[i].second >> dxx[i] >> dyy[i];
         }
         for ( is >> qr; qr--; ) {
+            if ( ++blocks > 1 )
+                os << '\n';
             t_aika time_tick;
             is >> time_tick;
-            std::vector<std::pair<t_pos,t_pos>> res(numballs);
-            for ( int i= 0; i < numballs; ++i )
-                res[i]= s.get_location_at(std::make_pair(std::get<0>(balls[i]),std::get<1>(balls[i])),std::get<2>(balls[i]),time_tick);
-            std::sort(res.begin(),res.end());
+            for ( int i= 0; i < numballs; ++i ) {
+                //res[i]= s.get_location_at(std::make_pair(std::get<0>(balls[i]),std::get<1>(balls[i])),std::get<2>(balls[i]),time_tick);
+                res[i]= std::make_pair(
+                        modulo(balls[i].first+dxx[i]*time_tick,2*m), modulo(balls[i].second+dyy[i]*time_tick,2*n)
+                );
+                if ( res[i].first > m )
+                    res[i].first= 2*m-res[i].first;
+                if ( res[i].second > n )
+                    res[i].second= 2*n-res[i].second;
+            }
+            std::sort(res,res+numballs);
             for ( int i= 0; i < numballs; ++i )
                 os << res[i].first << ' ' << res[i].second << '\n';
         }
